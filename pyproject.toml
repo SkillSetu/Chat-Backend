@@ -1,0 +1,19 @@
+[tool.poetry]
+name = "skillsetu-chat"
+version = "0.1.0"
+description = ""
+authors = ["ChiragAgg5k <110609663+ChiragAgg5k@users.noreply.github.com>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.11"
+fastapi = "^0.111.0"
+uvicorn = "^0.30.1"
+jinja2 = "^3.1.4"
+
+[tool.poetry.scripts]
+start = "uvicorn skillsetu_chat.main:app --reload"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
