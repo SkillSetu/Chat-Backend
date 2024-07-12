@@ -4,30 +4,12 @@ from fastapi.templating import Jinja2Templates
 from fastapi.responses import HTMLResponse
 import logging
 from fastapi_limiter.depends import WebSocketRateLimiter
-from motor.motor_asyncio import AsyncIOMotorClient
-from bson import ObjectId
-from datetime import datetime
-from fastapi.middleware.cors import CORSMiddleware
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
 
 app = FastAPI()
 templates = Jinja2Templates(directory=os.path.join(current_dir, "templates"))
 logger = logging.getLogger(__name__)
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],  # Allows all origins
-    allow_credentials=True,
-    allow_methods=["*"],  # Allows all methods
-    allow_headers=["*"],  # Allows all headers
-)
-
-# MongoDB connection
-MONGO_URL = "mongodb://localhost:27017"  # Replace with your MongoDB URL if different
-client = AsyncIOMotorClient(MONGO_URL)
-db = client.chatapp  # Replace 'chatapp' with your preferred database name
-messages_collection = db.messages
 
 
 class ConnectionManager:
@@ -82,19 +64,3 @@ async def websocket_endpoint(websocket: WebSocket, chat_id: str, client_id: int)
         manager.disconnect(websocket, chat_id)
         logger.info(f"Client #{client_id} left the chat {chat_id}")
         await manager.broadcast(f"Client #{client_id} left the chat", chat_id)
-
-
-# New route to fetch chat history
-@app.get("/chat_history/{chat_id}")
-async def get_chat_history(chat_id: str):
-    cursor = messages_collection.find({"chat_id": chat_id}).sort("timestamp", 1)
-    messages = await cursor.to_list(length=None)
-    return [
-        {
-            "id": str(msg["_id"]),
-            "client_id": msg["client_id"],
-            "message": msg["message"],
-            "timestamp": msg["timestamp"].isoformat(),
-        }
-        for msg in messages
-    ]
