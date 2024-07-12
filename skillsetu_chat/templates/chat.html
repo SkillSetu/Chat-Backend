@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 	<head>
-		<title>SkillSetu Chat</title>
+		<title>SkillSetu Private Chat</title>
 		<style>
 			body {
 				font-family: Arial, sans-serif;
@@ -43,7 +43,7 @@
 				list-style-type: none;
 				padding: 0;
 			}
-			#messages li {
+			#messages div {
 				margin-bottom: 10px;
 				padding: 8px 12px;
 				background-color: #e1ffc7;
@@ -51,7 +51,7 @@
 				max-width: 70%;
 				word-wrap: break-word;
 			}
-			#messages li.received {
+			#messages div.received {
 				background-color: #f0f0f0;
 				align-self: flex-start;
 			}
@@ -60,7 +60,7 @@
 				padding: 10px;
 				border-top: 1px solid #ddd;
 			}
-			#messageText {
+			input[type="text"] {
 				flex-grow: 1;
 				border: none;
 				padding: 10px;
@@ -75,91 +75,133 @@
 				border-radius: 20px;
 				cursor: pointer;
 			}
-			.chat-select {
-				margin-bottom: 10px;
+			#login {
+				text-align: center;
 			}
 		</style>
 	</head>
 	<body>
 		<div class="chat-container">
-			<div class="chat-header">
-				<h1>SkillSetu Chat</h1>
-				<p>Your ID: <span id="ws-id"></span></p>
-				<div class="chat-select">
-					<label for="chat-room">Select Chat Room:</label>
-					<select id="chat-room" onchange="connectToChat()">
-						<option value="chat1">Chat 1</option>
-						<option value="chat2">Chat 2</option>
-						<option value="chat3">Chat 3</option>
-					</select>
+			<div id="login">
+				<h2>Login</h2>
+				<input type="text" id="userId" placeholder="Enter your user ID" />
+				<button onclick="login()">Login</button>
+			</div>
+			<div id="chat" style="display: none">
+				<div class="chat-header">
+					<h1>SkillSetu Private Chat</h1>
+					<p>Your ID: <span id="currentUserId"></span></p>
+					<input type="text" id="receiverId" placeholder="Receiver's user ID" />
+				</div>
+				<div class="chat-messages">
+					<div id="messages"></div>
+				</div>
+				<div class="chat-input">
+					<input type="text" id="messageInput" placeholder="Type a message..." />
+					<button onclick="sendMessage()">Send</button>
 				</div>
 			</div>
-			<div class="chat-messages">
-				<ul id="messages"></ul>
-			</div>
-			<form class="chat-input" action="" onsubmit="sendMessage(event)">
-				<input type="text" id="messageText" autocomplete="off" placeholder="Type a message..." />
-				<button>Send</button>
-			</form>
 		</div>
+
 		<script>
-			var client_id = Date.now();
-			var ws;
-			var currentChatRoom = "chat1";
-			var chatMessages = {
-				chat1: [],
-				chat2: [],
-				chat3: []
-			};
+			let ws;
+			let currentUserId;
+			let token;
 
-			document.querySelector("#ws-id").textContent = client_id;
+			async function login() {
+				currentUserId = document.getElementById("userId").value;
+				const response = await fetch(`/get_token/${currentUserId}`);
+				const data = await response.json();
+				token = data.access_token;
 
-			function connectToChat() {
-				if (ws) {
-					ws.close();
-				}
-				currentChatRoom = document.getElementById("chat-room").value;
-				ws = new WebSocket(
-					`ws://{{ request.url.hostname }}:{{ request.url.port }}/ws/${currentChatRoom}/${client_id}`
-				);
-				ws.onmessage = function (event) {
-					var message = {
-						text: event.data,
-						isSent: event.data.startsWith("You wrote:")
-					};
-					chatMessages[currentChatRoom].push(message);
-					displayMessages();
-				};
-				displayMessages();
+				document.getElementById("login").style.display = "none";
+				document.getElementById("chat").style.display = "flex";
+				document.getElementById("chat").style.flexDirection = "column";
+				document.getElementById("currentUserId").textContent = currentUserId;
+
+				connectWebSocket();
 			}
 
-			function displayMessages() {
-				var messages = document.getElementById("messages");
-				messages.innerHTML = "";
-				chatMessages[currentChatRoom].forEach(function (message) {
-					var li = document.createElement("li");
-					var content = document.createTextNode(message.text);
-					li.appendChild(content);
-					if (message.isSent) {
-						li.style.alignSelf = "flex-end";
-						li.style.backgroundColor = "#e1ffc7";
-					} else {
-						li.classList.add("received");
+			function connectWebSocket() {
+				ws = new WebSocket(
+					`${window.location.protocol === "https:" ? "wss:" : "ws:"}//${window.location.host}/ws/${token}`
+				);
+
+				ws.onmessage = function (event) {
+					const messages = document.getElementById("messages");
+					const message = document.createElement("div");
+					message.textContent = event.data;
+					message.className = "received";
+					messages.appendChild(message);
+					messages.scrollTop = messages.scrollHeight;
+				};
+
+				ws.onclose = function (event) {
+					console.log("WebSocket connection closed:", event);
+				};
+			}
+
+			async function sendMessage() {
+				const receiverId = document.getElementById("receiverId").value;
+				const message = document.getElementById("messageInput").value;
+
+				if (!receiverId || !message) return;
+
+				ws.send(
+					JSON.stringify({
+						receiver: receiverId,
+						message: message
+					})
+				);
+
+				const messages = document.getElementById("messages");
+				const messageElement = document.createElement("div");
+				messageElement.textContent = `You: ${message}`;
+				messages.appendChild(messageElement);
+				messages.scrollTop = messages.scrollHeight;
+
+				document.getElementById("messageInput").value = "";
+
+				// Fetch and display updated chat history
+				await fetchChatHistory(receiverId);
+			}
+
+			async function fetchChatHistory(otherUserId) {
+				const response = await fetch(`/chat_history/${otherUserId}`, {
+					headers: {
+						Authorization: `Bearer ${token}`
 					}
-					messages.appendChild(li);
+				});
+				const history = await response.json();
+
+				const messages = document.getElementById("messages");
+				messages.innerHTML = "";
+				history.forEach((msg) => {
+					const message = document.createElement("div");
+					if (msg.sender === currentUserId) {
+						message.textContent = `You: ${msg.message}`;
+					} else {
+						message.textContent = `${msg.sender}: ${msg.message}`;
+						message.className = "received";
+					}
+					messages.appendChild(message);
 				});
 				messages.scrollTop = messages.scrollHeight;
 			}
 
-			function sendMessage(event) {
-				var input = document.getElementById("messageText");
-				ws.send(input.value);
-				input.value = "";
-				event.preventDefault();
-			}
+			// Event listener for Enter key in message input
+			document.getElementById("messageInput").addEventListener("keypress", function (e) {
+				if (e.key === "Enter") {
+					sendMessage();
+				}
+			});
 
-			// Connect to the default chat room on page load
-			connectToChat();
+			// Event listener for Enter key in receiver input
+			document.getElementById("receiverId").addEventListener("keypress", function (e) {
+				if (e.key === "Enter") {
+					fetchChatHistory(this.value);
+				}
+			});
 		</script>
 	</body>
 </html>
