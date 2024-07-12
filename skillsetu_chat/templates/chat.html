@@ -75,6 +75,9 @@
 				border-radius: 20px;
 				cursor: pointer;
 			}
+			.chat-select {
+				margin-bottom: 10px;
+			}
 		</style>
 	</head>
 	<body>
@@ -82,6 +85,14 @@
 			<div class="chat-header">
 				<h1>SkillSetu Chat</h1>
 				<p>Your ID: <span id="ws-id"></span></p>
+				<div class="chat-select">
+					<label for="chat-room">Select Chat Room:</label>
+					<select id="chat-room" onchange="connectToChat()">
+						<option value="chat1">Chat 1</option>
+						<option value="chat2">Chat 2</option>
+						<option value="chat3">Chat 3</option>
+					</select>
+				</div>
 			</div>
 			<div class="chat-messages">
 				<ul id="messages"></ul>
@@ -93,28 +104,62 @@
 		</div>
 		<script>
 			var client_id = Date.now();
-			document.querySelector("#ws-id").textContent = client_id;
-			var ws = new WebSocket(`ws://{{ request.url.hostname }}:{{ request.url.port }}/ws/${client_id}`);
-			ws.onmessage = function (event) {
-				var messages = document.getElementById("messages");
-				var message = document.createElement("li");
-				var content = document.createTextNode(event.data);
-				message.appendChild(content);
-				if (event.data.startsWith("You wrote:")) {
-					message.style.alignSelf = "flex-end";
-					message.style.backgroundColor = "#e1ffc7";
-				} else {
-					message.classList.add("received");
-				}
-				messages.appendChild(message);
-				messages.scrollTop = messages.scrollHeight;
+			var ws;
+			var currentChatRoom = "chat1";
+			var chatMessages = {
+				chat1: [],
+				chat2: [],
+				chat3: []
 			};
+
+			document.querySelector("#ws-id").textContent = client_id;
+
+			function connectToChat() {
+				if (ws) {
+					ws.close();
+				}
+				currentChatRoom = document.getElementById("chat-room").value;
+				ws = new WebSocket(
+					`ws://{{ request.url.hostname }}:{{ request.url.port }}/ws/${currentChatRoom}/${client_id}`
+				);
+				ws.onmessage = function (event) {
+					var message = {
+						text: event.data,
+						isSent: event.data.startsWith("You wrote:")
+					};
+					chatMessages[currentChatRoom].push(message);
+					displayMessages();
+				};
+				displayMessages();
+			}
+
+			function displayMessages() {
+				var messages = document.getElementById("messages");
+				messages.innerHTML = "";
+				chatMessages[currentChatRoom].forEach(function (message) {
+					var li = document.createElement("li");
+					var content = document.createTextNode(message.text);
+					li.appendChild(content);
+					if (message.isSent) {
+						li.style.alignSelf = "flex-end";
+						li.style.backgroundColor = "#e1ffc7";
+					} else {
+						li.classList.add("received");
+					}
+					messages.appendChild(li);
+				});
+				messages.scrollTop = messages.scrollHeight;
+			}
+
 			function sendMessage(event) {
 				var input = document.getElementById("messageText");
 				ws.send(input.value);
 				input.value = "";
 				event.preventDefault();
 			}
+
+			// Connect to the default chat room on page load
+			connectToChat();
 		</script>
 	</body>
 </html>
