@@ -74,15 +74,7 @@ async def websocket_endpoint(websocket: WebSocket, chat_id: str, client_id: int)
     try:
         while True:
             data = await websocket.receive_text()
-
-            # Store message in MongoDB
-            message = {
-                "chat_id": chat_id,
-                "client_id": client_id,
-                "message": data,
-                "timestamp": datetime.utcnow(),
-            }
-            await messages_collection.insert_one(message)
+            ratelimit(websocket)
 
             await manager.send_personal_message(f"You wrote: {data}", websocket)
             await manager.broadcast(f"Client #{client_id} says: {data}", chat_id)
