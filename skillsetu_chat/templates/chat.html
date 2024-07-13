@@ -222,23 +222,46 @@
 			function handleFileSelect(event) {
 				const file = event.target.files[0];
 				if (file) {
-					// This function is intentionally left half-finished
 					console.log("File selected:", file.name);
-					// TODO: Implement file reading and sending logic
-					// For now, we'll just log the file details
 					console.log("File type:", file.type);
 					console.log("File size:", file.size, "bytes");
 
-					// You would typically read the file here, e.g.:
-					// const reader = new FileReader();
-					// reader.onload = function(e) {
-					//     const fileContent = e.target.result;
-					//     // Process the file content
-					// };
-					// reader.readAsArrayBuffer(file);  // or readAsText for text files
+					const reader = new FileReader();
+					reader.onload = function (e) {
+						const base64File = e.target.result.split(",")[1]; // Remove the data URL prefix
+						sendFileToServer(file.name, file.type, base64File);
+					};
+					reader.readAsDataURL(file);
 
 					// Clear the file input for future selections
 					event.target.value = "";
+				}
+			}
+
+			async function sendFileToServer(fileName, fileType, base64File) {
+				try {
+					const response = await fetch("/upload_file", {
+						method: "POST",
+						headers: {
+							"Content-Type": "application/json",
+							Authorization: `Bearer ${token}`
+						},
+						body: JSON.stringify({
+							file_name: fileName,
+							file_type: fileType,
+							file_content: base64File
+						})
+					});
+
+					if (response.ok) {
+						const result = await response.json();
+						console.log("File uploaded successfully:", result);
+						// TODO: Update chat UI to show the uploaded file
+					} else {
+						console.error("Failed to upload file:", await response.text());
+					}
+				} catch (error) {
+					console.error("Error uploading file:", error);
 				}
 			}
 

@@ -14,12 +14,14 @@ from motor.motor_asyncio import AsyncIOMotorClient
 from datetime import datetime
 from fastapi.middleware.cors import CORSMiddleware
 from .utils.manager import ConnectionManager
+from .utils.models import FileUpload
 import json
 from .utils.services import (
     get_current_user,
     get_chat_collection_name,
     create_access_token,
 )
+import base64
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
 
@@ -134,3 +136,28 @@ async def get_chat_history(
 async def get_token(user_id: str):
     access_token = create_access_token(data={"sub": user_id})
     return {"access_token": access_token, "token_type": "bearer"}
+
+
+@app.post("/upload_file")
+async def upload_file(
+    file_upload: FileUpload, current_user: str = Depends(get_current_user)
+):
+    try:
+        # Decode the base64 file content
+        file_content = base64.b64decode(file_upload.file_content)
+
+        # TODO: Implement file storage logic
+        # For now, we'll just log the file details
+        print(f"Received file: {file_upload.file_name}")
+        print(f"File type: {file_upload.file_type}")
+        print(f"File size: {len(file_content)} bytes")
+
+        # TODO: Store the file in a secure location
+        # TODO: Update the database with the file information
+
+        return {
+            "message": "File uploaded successfully",
+            "file_name": file_upload.file_name,
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
