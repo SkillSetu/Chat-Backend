@@ -103,6 +103,22 @@
 			#attachButton {
 				background-color: #4d7c0f;
 			}
+			#file-name {
+				padding: 10px;
+			}
+
+			a {
+				color: #075e54;
+				text-decoration: none;
+			}
+
+			a:hover {
+				text-decoration: underline;
+			}
+
+			#file-preview {
+				padding: 10px;
+			}
 		</style>
 	</head>
 	<body>
@@ -120,7 +136,9 @@
 				</div>
 				<div class="chat-messages">
 					<div id="messages"></div>
+					<div id="file-preview"></div>
 				</div>
+				<div id="file-name"></div>
 				<div class="chat-input">
 					<input type="text" id="messageInput" placeholder="Type a message..." />
 					<button onclick="sendMessage()">Send</button>
@@ -134,6 +152,7 @@
 			let ws;
 			let currentUserId;
 			let token;
+			let selectedFile;
 
 			async function login() {
 				currentUserId = document.getElementById("userId").value;
@@ -169,10 +188,25 @@
 			function displayMessage(messageData) {
 				const messages = document.getElementById("messages");
 				const message = document.createElement("div");
+				const filePreview = document.getElementById("file-preview");
+
+				console.log("Received message:", messageData);
+
 				message.id = messageData.id;
 				message.textContent = `${messageData.sender === currentUserId ? "You" : messageData.sender}: ${
 					messageData.message
 				}`;
+
+				if (messageData.file) {
+					const fileLink = document.createElement("a");
+					fileLink.href = message
+						? messageData.file.url
+						: `data:${messageData.file.type};base64,${messageData.file.data}`;
+					fileLink.download = messageData.file.name;
+					fileLink.textContent = messageData.file.name;
+					filePreview.appendChild(fileLink);
+				}
+
 				message.className = messageData.sender === currentUserId ? "" : "received";
 				messages.appendChild(message);
 				messages.scrollTop = messages.scrollHeight;
@@ -181,15 +215,33 @@
 			async function sendMessage() {
 				const receiverId = document.getElementById("receiverId").value;
 				const message = document.getElementById("messageInput").value;
+				const sendFile = selectedFile;
 
 				if (!receiverId || !message) return;
 
-				ws.send(
-					JSON.stringify({
-						receiver: receiverId,
-						message: message
-					})
-				);
+				if (sendFile) {
+					ws.send(
+						JSON.stringify({
+							receiver: receiverId,
+							message: message,
+							file: {
+								name: sendFile.name,
+								type: sendFile.type,
+								url: URL.createObjectURL(sendFile)
+							}
+						})
+					);
+
+					selectedFile = null;
+					document.getElementById("file-name").textContent = "";
+				} else {
+					ws.send(
+						JSON.stringify({
+							receiver: receiverId,
+							message: message
+						})
+					);
+				}
 
 				document.getElementById("messageInput").value = "";
 			}
@@ -210,7 +262,8 @@
 						sender: msg.sender,
 						receiver: msg.receiver,
 						message: msg.message,
-						timestamp: msg.timestamp
+						timestamp: msg.timestamp,
+						file: msg.file
 					});
 				});
 			}
@@ -226,45 +279,13 @@
 					console.log("File type:", file.type);
 					console.log("File size:", file.size, "bytes");
 
-					const reader = new FileReader();
-					reader.onload = function (e) {
-						const base64File = e.target.result.split(",")[1]; // Remove the data URL prefix
-						sendFileThroughWebsocket(file.name, file.type, base64File);
-					};
-					reader.readAsDataURL(file);
+					// add file name to the UI
+					const fileName = document.getElementById("file-name");
+					fileName.textContent = file.name;
+					selectedFile = file;
 
 					// Clear the file input for future selections
 					event.target.value = "";
-				}
-			}
-
-			async function sendFileThroughWebsocket(fileName, fileType, base64File) {
-				try {
-					const receiverId = document.getElementById("receiverId").value;
-
-					if (!receiverId) alert("Enter a receiver ID first!");
-
-					ws.send(
-						JSON.stringify({
-							receiver: receiverId,
-							file: {
-								name: fileName,
-								type: fileType,
-								data: base64File
-							}
-						})
-					);
-
-					ws.send(
-						JSON.stringify({
-							receiver: receiverId,
-							message: `File: ${fileName}`
-						})
-					);
-
-					console.log("File sent through WebSocket:", fileName);
-				} catch (error) {
-					console.error("Error uploading file:", error);
 				}
 			}
 

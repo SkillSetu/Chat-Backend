@@ -10,7 +10,6 @@ from fastapi import (
 from fastapi.templating import Jinja2Templates
 from fastapi.responses import HTMLResponse
 import logging
-from motor.motor_asyncio import AsyncIOMotorClient
 from datetime import datetime
 from fastapi.middleware.cors import CORSMiddleware
 from .utils.manager import manager
@@ -20,7 +19,6 @@ from .utils.services import (
     get_chat_collection_name,
     create_access_token,
     handle_send_chat_message,
-    handle_send_file,
 )
 from .utils.database import db
 import base64
@@ -61,21 +59,17 @@ async def websocket_endpoint(websocket: WebSocket, token: str):
             data = await websocket.receive_json()
             receiver_id = data.get("receiver")
             message = data.get("message")
-            file = data.get("file")
+            fileData = data.get(
+                "file"
+            )  # {"filename": "file.txt", "type": "text/plain", "url": "data:text/plain;base64,SGVsbG8gV29ybGQ="}
+
+            if fileData:
+                logger.info(f"Received file data: {fileData}")
 
             if not receiver_id or not message:
                 continue
 
-            if file:
-                file_content = base64.b64decode(file["file_content"])
-                file = FileUpload(
-                    file_name=file["file_name"],
-                    file_type=file["file_type"],
-                    file_content=file_content,
-                )
-                await handle_send_file(user_id, receiver_id, file)
-            else:
-                await handle_send_chat_message(user_id, receiver_id, message)
+            await handle_send_chat_message(user_id, receiver_id, message, fileData)
 
     except WebSocketDisconnect:
         manager.disconnect(user_id)
@@ -104,7 +98,8 @@ async def get_chat_history(
             "sender": chat["sender"],
             "receiver": chat["receiver"],
             "message": chat["message"],
-            "timestamp": chat["timestamp"].isoformat(),
+            "timestamp": chat["timestamp"],
+            "file": chat.get("file"),
         }
         for chat in chat_history
     ]

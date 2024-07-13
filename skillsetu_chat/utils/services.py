@@ -41,67 +41,48 @@ def get_chat_collection_name(user1_id: str, user2_id: str):
     return f"chat_{sorted_ids[0]}_{sorted_ids[1]}"
 
 
-async def handle_send_file(user_id, receiver_id, file):
-    # for now just send file name as chat message to receiver
+async def handle_send_chat_message(user_id, receiver_id, message, file=None):
     chat_collection_name = get_chat_collection_name(user_id, receiver_id)
     chat_collection = db[chat_collection_name]
+    message_to_send = {}
 
-    # Store the message in MongoDB
-    new_message = await chat_collection.insert_one(
-        {
+    if file:
+        new_message = await chat_collection.insert_one(
+            {
+                "sender": user_id,
+                "receiver": receiver_id,
+                "message": message,
+                "file": file,
+                "timestamp": datetime.utcnow().isoformat(),
+            }
+        )
+
+        message_to_send = {
+            "id": str(new_message.inserted_id),
             "sender": user_id,
             "receiver": receiver_id,
-            "message": file.file_name,
-            "timestamp": datetime.utcnow(),
-            "file": {
-                "file_name": file.file_name,
-                "file_type": file.file_type,
-                "file_content": file.file_content,
-            },
+            "message": message,
+            "file": file,
+            "timestamp": datetime.utcnow().isoformat(),
         }
-    )
+    else:
+        new_message = await chat_collection.insert_one(
+            {
+                "sender": user_id,
+                "receiver": receiver_id,
+                "message": message,
+                "timestamp": datetime.utcnow().isoformat(),
+            }
+        )
 
-    # Prepare the message to be sent
-    message_to_send = {
-        "id": str(new_message.inserted_id),
-        "sender": user_id,
-        "receiver": receiver_id,
-        "message": file.file_name,
-        "timestamp": datetime.utcnow().isoformat(),
-        "file": {
-            "file_name": file.file_name,
-            "file_type": file.file_type,
-            "file_content": file.file_content,
-        },
-    }
-
-    # Send the message to both the sender and the receiver
-    await manager.send_personal_message(json.dumps(message_to_send), user_id)
-    await manager.send_personal_message(json.dumps(message_to_send), receiver_id)
-
-
-async def handle_send_chat_message(user_id, receiver_id, message):
-    chat_collection_name = get_chat_collection_name(user_id, receiver_id)
-    chat_collection = db[chat_collection_name]
-
-    # Store the message in MongoDB
-    new_message = await chat_collection.insert_one(
-        {
+        # Prepare the message to be sent
+        message_to_send = {
+            "id": str(new_message.inserted_id),
             "sender": user_id,
             "receiver": receiver_id,
             "message": message,
             "timestamp": datetime.utcnow().isoformat(),
         }
-    )
-
-    # Prepare the message to be sent
-    message_to_send = {
-        "id": str(new_message.inserted_id),
-        "sender": user_id,
-        "receiver": receiver_id,
-        "message": message,
-        "timestamp": datetime.utcnow().isoformat(),
-    }
 
     # Send the message to both the sender and the receiver
     await manager.send_personal_message(json.dumps(message_to_send), user_id)
