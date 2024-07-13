@@ -229,7 +229,7 @@
 					const reader = new FileReader();
 					reader.onload = function (e) {
 						const base64File = e.target.result.split(",")[1]; // Remove the data URL prefix
-						sendFileToServer(file.name, file.type, base64File);
+						sendFileThroughWebsocket(file.name, file.type, base64File);
 					};
 					reader.readAsDataURL(file);
 
@@ -238,28 +238,31 @@
 				}
 			}
 
-			async function sendFileToServer(fileName, fileType, base64File) {
+			async function sendFileThroughWebsocket(fileName, fileType, base64File) {
 				try {
-					const response = await fetch("/upload_file", {
-						method: "POST",
-						headers: {
-							"Content-Type": "application/json",
-							Authorization: `Bearer ${token}`
-						},
-						body: JSON.stringify({
-							file_name: fileName,
-							file_type: fileType,
-							file_content: base64File
-						})
-					});
+					const receiverId = document.getElementById("receiverId").value;
 
-					if (response.ok) {
-						const result = await response.json();
-						console.log("File uploaded successfully:", result);
-						// TODO: Update chat UI to show the uploaded file
-					} else {
-						console.error("Failed to upload file:", await response.text());
-					}
+					if (!receiverId) alert("Enter a receiver ID first!");
+
+					ws.send(
+						JSON.stringify({
+							receiver: receiverId,
+							file: {
+								name: fileName,
+								type: fileType,
+								data: base64File
+							}
+						})
+					);
+
+					ws.send(
+						JSON.stringify({
+							receiver: receiverId,
+							message: `File: ${fileName}`
+						})
+					);
+
+					console.log("File sent through WebSocket:", fileName);
 				} catch (error) {
 					console.error("Error uploading file:", error);
 				}

@@ -66,37 +66,21 @@ async def websocket_endpoint(websocket: WebSocket, token: str):
             data = await websocket.receive_json()
             receiver_id = data.get("receiver")
             message = data.get("message")
+            file = data.get("file")
 
             if not receiver_id or not message:
                 continue
 
-            chat_collection_name = get_chat_collection_name(user_id, receiver_id)
-            chat_collection = db[chat_collection_name]
-
-            # Store the message in MongoDB
-            new_message = await chat_collection.insert_one(
-                {
-                    "sender": user_id,
-                    "receiver": receiver_id,
-                    "message": message,
-                    "timestamp": datetime.utcnow(),
-                }
-            )
-
-            # Prepare the message to be sent
-            message_to_send = {
-                "id": str(new_message.inserted_id),
-                "sender": user_id,
-                "receiver": receiver_id,
-                "message": message,
-                "timestamp": datetime.utcnow().isoformat(),
-            }
-
-            # Send the message to both the sender and the receiver
-            await manager.send_personal_message(json.dumps(message_to_send), user_id)
-            await manager.send_personal_message(
-                json.dumps(message_to_send), receiver_id
-            )
+            if file:
+                file_content = base64.b64decode(file["file_content"])
+                file = FileUpload(
+                    file_name=file["file_name"],
+                    file_type=file["file_type"],
+                    file_content=file_content,
+                )
+                await handle_send_file(user_id, receiver_id, file)
+            else:
+                await handle_send_chat_message(user_id, receiver_id, message)
 
     except WebSocketDisconnect:
         manager.disconnect(user_id)
@@ -138,26 +122,68 @@ async def get_token(user_id: str):
     return {"access_token": access_token, "token_type": "bearer"}
 
 
-@app.post("/upload_file")
-async def upload_file(
-    file_upload: FileUpload, current_user: str = Depends(get_current_user)
-):
-    try:
-        # Decode the base64 file content
-        file_content = base64.b64decode(file_upload.file_content)
+async def handle_send_file(user_id, receiver_id, file):
+    # for now just send file name as chat message to receiver
+    chat_collection_name = get_chat_collection_name(user_id, receiver_id)
+    chat_collection = db[chat_collection_name]
 
-        # TODO: Implement file storage logic
-        # For now, we'll just log the file details
-        print(f"Received file: {file_upload.file_name}")
-        print(f"File type: {file_upload.file_type}")
-        print(f"File size: {len(file_content)} bytes")
-
-        # TODO: Store the file in a secure location
-        # TODO: Update the database with the file information
-
-        return {
-            "message": "File uploaded successfully",
-            "file_name": file_upload.file_name,
+    # Store the message in MongoDB
+    new_message = await chat_collection.insert_one(
+        {
+            "sender": user_id,
+            "receiver": receiver_id,
+            "message": file.file_name,
+            "timestamp": datetime.utcnow(),
+            "file": {
+                "file_name": file.file_name,
+                "file_type": file.file_type,
+                "file_content": file.file_content,
+            },
         }
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    )
+
+    # Prepare the message to be sent
+    message_to_send = {
+        "id": str(new_message.inserted_id),
+        "sender": user_id,
+        "receiver": receiver_id,
+        "message": file.file_name,
+        "timestamp": datetime.utcnow().isoformat(),
+        "file": {
+            "file_name": file.file_name,
+            "file_type": file.file_type,
+            "file_content": file.file_content,
+        },
+    }
+
+    # Send the message to both the sender and the receiver
+    await manager.send_personal_message(json.dumps(message_to_send), user_id)
+    await manager.send_personal_message(json.dumps(message_to_send), receiver_id)
+
+
+async def handle_send_chat_message(user_id, receiver_id, message):
+    chat_collection_name = get_chat_collection_name(user_id, receiver_id)
+    chat_collection = db[chat_collection_name]
+
+    # Store the message in MongoDB
+    new_message = await chat_collection.insert_one(
+        {
+            "sender": user_id,
+            "receiver": receiver_id,
+            "message": message,
+            "timestamp": datetime.utcnow().isoformat(),
+        }
+    )
+
+    # Prepare the message to be sent
+    message_to_send = {
+        "id": str(new_message.inserted_id),
+        "sender": user_id,
+        "receiver": receiver_id,
+        "message": message,
+        "timestamp": datetime.utcnow().isoformat(),
+    }
+
+    # Send the message to both the sender and the receiver
+    await manager.send_personal_message(json.dumps(message_to_send), user_id)
+    await manager.send_personal_message(json.dumps(message_to_send), receiver_id)
