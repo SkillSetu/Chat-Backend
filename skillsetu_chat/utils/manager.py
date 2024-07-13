@@ -15,3 +15,6 @@ class ConnectionManager:
     async def send_personal_message(self, message: str, user_id: str):
         if user_id in self.active_connections:
             await self.active_connections[user_id].send_text(message)
+
+
+manager = ConnectionManager()
