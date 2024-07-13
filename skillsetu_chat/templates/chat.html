@@ -78,6 +78,31 @@
 			#login {
 				text-align: center;
 			}
+			.chat-input {
+				display: flex;
+				padding: 10px;
+				border-top: 1px solid #ddd;
+			}
+			input[type="text"],
+			input[type="file"] {
+				flex-grow: 1;
+				border: none;
+				padding: 10px;
+				border-radius: 20px;
+				margin-right: 10px;
+			}
+			button {
+				background-color: #075e54;
+				color: white;
+				border: none;
+				padding: 10px 20px;
+				border-radius: 20px;
+				cursor: pointer;
+				margin-right: 5px;
+			}
+			#attachButton {
+				background-color: #4d7c0f;
+			}
 		</style>
 	</head>
 	<body>
@@ -99,6 +124,8 @@
 				<div class="chat-input">
 					<input type="text" id="messageInput" placeholder="Type a message..." />
 					<button onclick="sendMessage()">Send</button>
+					<button id="attachButton" onclick="attachDocument()">Attach</button>
+					<input type="file" id="fileInput" style="display: none" onchange="handleFileSelect(event)" />
 				</div>
 			</div>
 		</div>
@@ -186,6 +213,33 @@
 						timestamp: msg.timestamp
 					});
 				});
+			}
+
+			function attachDocument() {
+				document.getElementById("fileInput").click();
+			}
+
+			function handleFileSelect(event) {
+				const file = event.target.files[0];
+				if (file) {
+					// This function is intentionally left half-finished
+					console.log("File selected:", file.name);
+					// TODO: Implement file reading and sending logic
+					// For now, we'll just log the file details
+					console.log("File type:", file.type);
+					console.log("File size:", file.size, "bytes");
+
+					// You would typically read the file here, e.g.:
+					// const reader = new FileReader();
+					// reader.onload = function(e) {
+					//     const fileContent = e.target.result;
+					//     // Process the file content
+					// };
+					// reader.readAsArrayBuffer(file);  // or readAsText for text files
+
+					// Clear the file input for future selections
+					event.target.value = "";
+				}
 			}
 
 			// Event listener for Enter key in message input
