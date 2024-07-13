@@ -13,7 +13,6 @@ import logging
 from datetime import datetime
 from fastapi.middleware.cors import CORSMiddleware
 from .utils.manager import manager
-from .utils.models import FileUpload
 from .utils.services import (
     get_current_user,
     get_chat_collection_name,
@@ -21,7 +20,7 @@ from .utils.services import (
     handle_send_chat_message,
 )
 from .utils.database import db
-import base64
+from .utils.models import ChatMessage
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
 
@@ -57,19 +56,16 @@ async def websocket_endpoint(websocket: WebSocket, token: str):
     try:
         while True:
             data = await websocket.receive_json()
-            receiver_id = data.get("receiver")
-            message = data.get("message")
-            fileData = data.get(
-                "file"
-            )  # {"filename": "file.txt", "type": "text/plain", "url": "data:text/plain;base64,SGVsbG8gV29ybGQ="}
+            chat_message = ChatMessage(**data)
+            chat_message.sender = user_id
 
-            if fileData:
-                logger.info(f"Received file data: {fileData}")
+            if chat_message.file:
+                logger.info(f"Received file data: {chat_message.file}")
 
-            if not receiver_id or not message:
+            if not chat_message.receiver or not chat_message.message:
                 continue
 
-            await handle_send_chat_message(user_id, receiver_id, message, fileData)
+            await handle_send_chat_message(chat_message)
 
     except WebSocketDisconnect:
         manager.disconnect(user_id)
@@ -93,19 +89,9 @@ async def get_chat_history(
     ).sort("timestamp", 1)
 
     chat_history = await cursor.to_list(length=None)
-    return [
-        {
-            "sender": chat["sender"],
-            "receiver": chat["receiver"],
-            "message": chat["message"],
-            "timestamp": chat["timestamp"],
-            "file": chat.get("file"),
-        }
-        for chat in chat_history
-    ]
+    return [ChatMessage(**chat).dict() for chat in chat_history]
 
 
-# For demonstration purposes, we'll create a simple endpoint to generate tokens
 @app.get("/get_token/{user_id}")
 async def get_token(user_id: str):
     access_token = create_access_token(data={"sub": user_id})

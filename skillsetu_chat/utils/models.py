@@ -1,7 +1,18 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
+from typing import Optional
+from datetime import datetime
 
 
-class FileUpload(BaseModel):
-    file_name: str
-    file_type: str
-    file_content: str
+class FileData(BaseModel):
+    name: str
+    type: str
+    url: str
+
+
+class ChatMessage(BaseModel):
+    id: Optional[str] = None
+    sender: Optional[str] = None
+    receiver: str
+    message: str
+    file: Optional[FileData] = None
+    timestamp: datetime = Field(default_factory=datetime.utcnow)
