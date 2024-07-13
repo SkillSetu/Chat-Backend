@@ -17,6 +17,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from jose import JWTError, jwt
 from fastapi.security import OAuth2PasswordBearer
 from .utils.manager import ConnectionManager
+import json
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
 
@@ -104,7 +105,7 @@ async def websocket_endpoint(websocket: WebSocket, token: str):
             chat_collection = db[chat_collection_name]
 
             # Store the message in MongoDB
-            await chat_collection.insert_one(
+            new_message = await chat_collection.insert_one(
                 {
                     "sender": user_id,
                     "receiver": receiver_id,
@@ -113,8 +114,20 @@ async def websocket_endpoint(websocket: WebSocket, token: str):
                 }
             )
 
-            # Send the message to the receiver if they're connected
-            await manager.send_personal_message(f"{user_id}: {message}", receiver_id)
+            # Prepare the message to be sent
+            message_to_send = {
+                "id": str(new_message.inserted_id),
+                "sender": user_id,
+                "receiver": receiver_id,
+                "message": message,
+                "timestamp": datetime.utcnow().isoformat(),
+            }
+
+            # Send the message to both the sender and the receiver
+            await manager.send_personal_message(json.dumps(message_to_send), user_id)
+            await manager.send_personal_message(
+                json.dumps(message_to_send), receiver_id
+            )
 
     except WebSocketDisconnect:
         manager.disconnect(user_id)
