@@ -80,9 +80,6 @@ async def websocket_endpoint(websocket: WebSocket, token: str):
 
             chat_message.sender = user_id
 
-            if chat_message.file:
-                logger.info(f"Received file data: {chat_message.file}")
-
             if not chat_message.receiver or not chat_message.message:
                 await websocket.send_json({"error": "Missing receiver or message"})
                 continue
