@@ -21,6 +21,13 @@ from .utils.services import (
 )
 from .utils.database import db
 from .utils.models import ChatMessage
+import boto3
+from botocore.exceptions import ClientError
+from fastapi import File, UploadFile
+from typing import List
+from dotenv import load_dotenv
+
+load_dotenv()
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
 
@@ -149,3 +156,55 @@ async def general_exception_handler(request: Request, exc: Exception):
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
         content={"message": "An unexpected error occurred"},
     )
+
+
+s3_client = boto3.client(
+    "s3",
+    aws_access_key_id=os.getenv("AWS_ACCESS_KEY_ID"),
+    aws_secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY"),
+    region_name=os.getenv("AWS_REGION"),
+)
+
+
+@app.post("/upload_files")
+async def upload_files(
+    files: List[UploadFile] = File(...), current_user: str = Depends(get_current_user)
+):
+    try:
+        uploaded_files = []
+        for file in files:
+            file_name = f"{current_user}_{file.filename}"
+
+            s3_client.upload_fileobj(
+                file.file,
+                os.getenv("S3_BUCKET_NAME"),
+                file_name,
+                ExtraArgs={"ContentType": file.content_type},
+            )
+
+            url = s3_client.generate_presigned_url(
+                "get_object",
+                Params={"Bucket": os.getenv("S3_BUCKET_NAME"), "Key": file_name},
+                ExpiresIn=3600,
+            )
+
+            uploaded_files.append(
+                {
+                    "original_file_name": file.filename,
+                    "stored_file_name": file_name,
+                    "url": url,
+                }
+            )
+
+        return {
+            "message": f"{len(uploaded_files)} file(s) uploaded successfully",
+            "files": uploaded_files,
+        }
+
+    except ClientError as e:
+        logger.error(f"Error uploading file(s) to S3: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to upload file(s)")
+
+    except Exception as e:
+        logger.error(f"Unexpected error during file upload: {str(e)}")
+        raise HTTPException(status_code=500, detail="An unexpected error occurred")

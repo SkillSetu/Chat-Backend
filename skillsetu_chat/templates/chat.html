@@ -152,7 +152,7 @@
 			let ws;
 			let currentUserId;
 			let token;
-			let selectedFile;
+			let filesToSend = [];
 
 			async function login() {
 				currentUserId = document.getElementById("userId").value;
@@ -215,24 +215,19 @@
 			async function sendMessage() {
 				const receiverId = document.getElementById("receiverId").value;
 				const message = document.getElementById("messageInput").value;
-				const sendFile = selectedFile;
 
 				if (!receiverId || !message) return;
 
-				if (sendFile) {
+				if (filesToSend.length > 0) {
 					ws.send(
 						JSON.stringify({
 							receiver: receiverId,
 							message: message,
-							file: {
-								name: sendFile.name,
-								type: sendFile.type,
-								url: URL.createObjectURL(sendFile)
-							}
+							attachments: filesToSend.map((file) => file.url)
 						})
 					);
 
-					selectedFile = null;
+					filesToSend = [];
 					document.getElementById("file-name").textContent = "";
 				} else {
 					ws.send(
@@ -272,20 +267,50 @@
 				document.getElementById("fileInput").click();
 			}
 
-			function handleFileSelect(event) {
-				const file = event.target.files[0];
-				if (file) {
-					console.log("File selected:", file.name);
-					console.log("File type:", file.type);
-					console.log("File size:", file.size, "bytes");
+			async function handleFileSelect(event) {
+				const files = event.target.files;
+				if (files.length > 0) {
+					console.log(`${files.length} file(s) selected`);
 
-					// add file name to the UI
-					const fileName = document.getElementById("file-name");
-					fileName.textContent = file.name;
-					selectedFile = file;
+					const uploadedFileInfo = await uploadFiles(files);
+					console.log("Uploaded files:", uploadedFileInfo);
+					if (uploadedFileInfo) {
+						const fileNames = uploadedFileInfo.map((file) => file.original_file_name).join(", ");
+						filesToSend = uploadedFileInfo;
+						document.getElementById("file-name").textContent = `Selected files: ${fileNames}`;
+					} else {
+						alert("File upload failed. Please try again.");
+					}
 
 					// Clear the file input for future selections
 					event.target.value = "";
+				}
+			}
+
+			async function uploadFiles(files) {
+				const formData = new FormData();
+				for (let file of files) {
+					formData.append("files", file);
+				}
+
+				try {
+					const response = await fetch("/upload_files", {
+						method: "POST",
+						body: formData,
+						headers: {
+							Authorization: `Bearer ${token}`
+						}
+					});
+
+					if (!response.ok) {
+						throw new Error("File upload failed");
+					}
+
+					const result = await response.json();
+					return result.files;
+				} catch (error) {
+					console.error("Error uploading files:", error);
+					return null;
 				}
 			}
 

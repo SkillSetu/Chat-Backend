@@ -14,5 +14,6 @@ class ChatMessage(BaseModel):
     sender: Optional[str] = None
     receiver: str
     message: str
+    attachments: Optional[list[str]] = None
     file: Optional[FileData] = None
     timestamp: datetime = Field(default_factory=datetime.utcnow)
