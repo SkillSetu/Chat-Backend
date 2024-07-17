@@ -182,11 +182,8 @@ async def upload_files(
                 ExtraArgs={"ContentType": content_type},
             )
 
-            url = s3_client.generate_presigned_url(
-                "get_object",
-                Params={"Bucket": os.getenv("S3_BUCKET_NAME"), "Key": file_name},
-                ExpiresIn=3600,
-            )
+            # Generate the URL for the uploaded file
+            url = f"https://{os.getenv('S3_BUCKET_NAME')}.s3.amazonaws.com/{file_name}"
 
             uploaded_files.append(
                 {

@@ -122,12 +122,6 @@
 			a:hover {
 				text-decoration: underline;
 			}
-
-			#file-preview {
-				padding: 10px;
-				max-height: 60px;
-				overflow-y: auto;
-			}
 		</style>
 	</head>
 	<body>
@@ -145,7 +139,6 @@
 				</div>
 				<div class="chat-messages">
 					<div id="messages"></div>
-					<div id="file-preview"></div>
 				</div>
 				<div id="file-name"></div>
 				<div class="chat-input">
@@ -202,9 +195,6 @@
 			function displayMessage(messageData) {
 				const messages = document.getElementById("messages");
 				const message = document.createElement("div");
-				const filePreview = document.getElementById("file-preview");
-
-				console.log("Received message:", messageData);
 
 				message.id = messageData.id;
 				message.textContent = `${messageData.sender === currentUserId ? "You" : messageData.sender}: ${
@@ -212,17 +202,28 @@
 				}`;
 
 				if (messageData.attachments) {
-					console.log("Attachments:", messageData.attachments);
 					const attachments = document.createElement("div");
 					attachments.textContent = "Attachments:";
 					message.appendChild(attachments);
 
 					messageData.attachments.forEach((attachment) => {
-						const attachmentLink = document.createElement("a");
-						attachmentLink.href = attachment;
-						attachmentLink.textContent = attachment.split("/").pop();
-						attachmentLink.download = attachment.split("/").pop();
-						attachments.appendChild(attachmentLink);
+						let extension = attachment.split(".")[attachment.split(".").length - 1];
+						console.log(attachment, extension);
+
+						if (extension === "jpg" || extension === "jpeg" || extension === "png" || extension === "gif") {
+							const img = document.createElement("img");
+							img.src = attachment;
+							img.style.maxWidth = "100%";
+							img.style.maxHeight = "100%";
+							img.alt = attachment.split("/").pop();
+							attachments.appendChild(img);
+						} else {
+							const link = document.createElement("a");
+							link.href = attachment;
+							link.textContent = attachment.split("/").pop();
+							link.target = "_blank";
+							attachments.appendChild(link);
+						}
 					});
 				}
 
