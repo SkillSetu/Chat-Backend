@@ -9,6 +9,7 @@ import os
 import requests
 from requests.exceptions import ConnectionError, HTTPError
 from fastapi import HTTPException
+from .database import db
 
 # Optionally providing an access token within a session if you have enabled push security
 session = requests.Session()
@@ -73,4 +74,8 @@ async def send_push_message(client_id: str, message: str, extra: dict = None):
 
 
 async def get_push_token(client_id: str):
-    return
+    user = await db.users.find_one({"_id": client_id})
+    if not user:
+        return None
+
+    return user.get("notificationPermissionToken", None)

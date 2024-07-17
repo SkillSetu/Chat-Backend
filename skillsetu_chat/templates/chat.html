@@ -186,7 +186,6 @@
 				};
 
 				ws.onclose = function (event) {
-					console.log("WebSocket connection closed:", event);
 					// Attempt to reconnect after a delay
 					setTimeout(connectWebSocket, 5000);
 				};
@@ -208,7 +207,6 @@
 
 					messageData.attachments.forEach((attachment) => {
 						let extension = attachment.split(".")[attachment.split(".").length - 1];
-						console.log(attachment, extension);
 
 						if (extension === "jpg" || extension === "jpeg" || extension === "png" || extension === "gif") {
 							const img = document.createElement("img");
@@ -290,10 +288,7 @@
 			async function handleFileSelect(event) {
 				const files = event.target.files;
 				if (files.length > 0) {
-					console.log(`${files.length} file(s) selected`);
-
 					const uploadedFileInfo = await uploadFiles(files);
-					console.log("Uploaded files:", uploadedFileInfo);
 					if (uploadedFileInfo) {
 						const fileNames = uploadedFileInfo.map((file) => file.original_file_name).join(", ");
 						filesToSend = uploadedFileInfo;

@@ -97,7 +97,6 @@ async def websocket_endpoint(websocket: WebSocket, token: str):
             try:
                 await handle_send_chat_message(chat_message)
                 if not await manager.is_connected(chat_message.receiver):
-                    print("Sending push message")
                     await send_push_message(
                         chat_message.receiver,
                         f"New message from {user_id}",
@@ -163,7 +162,6 @@ async def upload_files(
     current_user_id: str = Depends(get_current_user),
     other_user_id: str = Form(...),
 ):
-    print(files)
     try:
         uploaded_files = []
         for file in files:
@@ -181,7 +179,6 @@ async def upload_files(
             # Compress the file
             compressed_file = compress_file(file)
             chatid = get_chat_collection_name(current_user_id, other_user_id)
-            print(chatid)
             file_name = f"{chatid}/{file.filename}"
             content_type = (
                 "application/gzip"
