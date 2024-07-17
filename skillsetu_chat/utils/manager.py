@@ -16,5 +16,8 @@ class ConnectionManager:
         if user_id in self.active_connections:
             await self.active_connections[user_id].send_text(message)
 
+    async def is_connected(self, user_id: str):
+        return user_id in self.active_connections
+
 
 manager = ConnectionManager()

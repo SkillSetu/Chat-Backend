@@ -22,7 +22,13 @@ session.headers.update(
 )
 
 
-async def send_push_message(token: str, message: str, extra: dict = None):
+async def send_push_message(client_id: str, message: str, extra: dict = None):
+    token = await get_push_token(client_id)
+    if not token:
+        raise HTTPException(
+            status_code=404, detail=f"Push token not found for {client_id}"
+        )
+
     try:
         response = PushClient(session=session).publish(
             PushMessage(to=token, body=message, data=extra)
@@ -64,3 +70,7 @@ async def send_push_message(token: str, message: str, extra: dict = None):
         raise HTTPException(status_code=500, detail=f"Push Ticket Error: {error_data}")
 
     return {"success": True, "response": response._asdict()}
+
+
+async def get_push_token(client_id: str):
+    return

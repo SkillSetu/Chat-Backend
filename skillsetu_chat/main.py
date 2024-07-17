@@ -27,6 +27,7 @@ from botocore.exceptions import ClientError
 from fastapi import File, UploadFile
 from typing import List
 from dotenv import load_dotenv
+from .utils.notifications import send_push_message
 
 load_dotenv()
 
@@ -95,6 +96,14 @@ async def websocket_endpoint(websocket: WebSocket, token: str):
 
             try:
                 await handle_send_chat_message(chat_message)
+                if not await manager.is_connected(chat_message.receiver):
+                    print("Sending push message")
+                    await send_push_message(
+                        chat_message.receiver,
+                        f"New message from {user_id}",
+                        {"message": chat_message.message},
+                    )
+
             except Exception as e:
                 logger.error(f"Error handling chat message: {str(e)}")
                 await websocket.send_json({"error": "Failed to send message"})
@@ -102,6 +111,7 @@ async def websocket_endpoint(websocket: WebSocket, token: str):
     except WebSocketDisconnect:
         manager.disconnect(user_id)
         logger.info(f"User {user_id} disconnected")
+
     except Exception as e:
         logger.error(f"Unexpected error in WebSocket connection: {str(e)}")
         await websocket.close(code=status.WS_1011_INTERNAL_ERROR)
