@@ -25,10 +25,6 @@ session.headers.update(
 
 async def send_push_message(client_id: str, message: str, extra: dict = None):
     token = await get_push_token(client_id)
-    if not token:
-        raise HTTPException(
-            status_code=404, detail=f"Push token not found for {client_id}"
-        )
 
     try:
         response = PushClient(session=session).publish(
@@ -74,8 +70,13 @@ async def send_push_message(client_id: str, message: str, extra: dict = None):
 
 
 async def get_push_token(client_id: str):
-    user = await db.users.find_one({"_id": client_id})
-    if not user:
-        return None
-
-    return user.get("notificationPermissionToken", None)
+    try:
+        user = await db.users.find_one({"_id": client_id})
+        if user.get("notificationPermissionToken"):
+            return user.get("notificationPermissionToken")
+        else:
+            raise HTTPException(
+                status_code=404, detail=f"Push token not found for {client_id}"
+            )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error fetching user: {str(e)}")
