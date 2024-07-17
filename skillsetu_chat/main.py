@@ -24,7 +24,7 @@ from .utils.database import db
 from .utils.models import ChatMessage
 import boto3
 from botocore.exceptions import ClientError
-from fastapi import File, UploadFile
+from fastapi import File, UploadFile, Form
 from typing import List
 from dotenv import load_dotenv
 from .utils.notifications import send_push_message
@@ -161,8 +161,9 @@ async def get_token(user_id: str):
 async def upload_files(
     files: List[UploadFile] = File(...),
     current_user_id: str = Depends(get_current_user),
-    other_user_id: str = None,
+    other_user_id: str = Form(...),
 ):
+    print(files)
     try:
         uploaded_files = []
         for file in files:
@@ -180,6 +181,7 @@ async def upload_files(
             # Compress the file
             compressed_file = compress_file(file)
             chatid = get_chat_collection_name(current_user_id, other_user_id)
+            print(chatid)
             file_name = f"{chatid}/{file.filename}"
             content_type = (
                 "application/gzip"
