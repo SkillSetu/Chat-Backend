@@ -159,7 +159,9 @@ async def get_token(user_id: str):
 
 @app.post("/upload_files")
 async def upload_files(
-    files: List[UploadFile] = File(...), current_user: str = Depends(get_current_user)
+    files: List[UploadFile] = File(...),
+    current_user_id: str = Depends(get_current_user),
+    other_user_id: str = None,
 ):
     try:
         uploaded_files = []
@@ -177,8 +179,8 @@ async def upload_files(
 
             # Compress the file
             compressed_file = compress_file(file)
-
-            file_name = f"{current_user}_{file.filename}"
+            chatid = get_chat_collection_name(current_user_id, other_user_id)
+            file_name = f"{chatid}/{file.filename}"
             content_type = (
                 "application/gzip"
                 if not file.content_type.startswith("image")

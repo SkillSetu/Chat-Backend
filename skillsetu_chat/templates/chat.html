@@ -308,7 +308,9 @@
 			}
 
 			async function uploadFiles(files) {
+				const receiverId = document.getElementById("receiverId").value;
 				const formData = new FormData();
+				formData.append("other_user_id", receiverId);
 				for (let file of files) {
 					formData.append("files", file);
 				}
