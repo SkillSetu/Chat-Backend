@@ -18,6 +18,7 @@ from .utils.services import (
     get_chat_collection_name,
     create_access_token,
     handle_send_chat_message,
+    compress_file,
 )
 from .utils.database import db
 from .utils.models import ChatMessage
@@ -42,6 +43,8 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+MAX_FILE_SIZE = 10 * 1024 * 1024  # 10 MB
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -170,13 +173,32 @@ async def upload_files(
     try:
         uploaded_files = []
         for file in files:
+            # Check file size
+            file.file.seek(0, 2)
+            file_size = file.file.tell()
+            file.file.seek(0)
+
+            if file_size > MAX_FILE_SIZE:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"File {file.filename} exceeds the maximum size limit of {MAX_FILE_SIZE / (1024 * 1024)} MB",
+                )
+
+            # Compress the file
+            compressed_file = compress_file(file)
+
             file_name = f"{current_user}_{file.filename}"
+            content_type = (
+                "application/gzip"
+                if not file.content_type.startswith("image")
+                else file.content_type
+            )
 
             s3_client.upload_fileobj(
-                file.file,
+                compressed_file,
                 os.getenv("S3_BUCKET_NAME"),
                 file_name,
-                ExtraArgs={"ContentType": file.content_type},
+                ExtraArgs={"ContentType": content_type},
             )
 
             url = s3_client.generate_presigned_url(
@@ -201,6 +223,9 @@ async def upload_files(
     except ClientError as e:
         logger.error(f"Error uploading file(s) to S3: {str(e)}")
         raise HTTPException(status_code=500, detail="Failed to upload file(s)")
+
+    except HTTPException as he:
+        raise he
 
     except Exception as e:
         logger.error(f"Unexpected error during file upload: {str(e)}")

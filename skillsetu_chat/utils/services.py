@@ -1,11 +1,14 @@
 import logging
 from jose import JWTError, jwt, ExpiredSignatureError
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, status, UploadFile
 from datetime import datetime, timedelta
 from fastapi.security import OAuth2PasswordBearer
 from .manager import manager
 from .database import db
 from .models import ChatMessage, FileData
+import io
+import gzip
+from PIL import Image
 
 SECRET_KEY = "your-secret-key"
 ALGORITHM = "HS256"
@@ -101,3 +104,17 @@ def create_chat_message(data: dict) -> ChatMessage:
     except Exception as e:
         logger.error(f"Error creating chat message: {str(e)}")
         raise ValueError("Invalid chat message data")
+
+
+def compress_file(file: UploadFile) -> io.BytesIO:
+    compressed_file = io.BytesIO()
+
+    if file.content_type.startswith("image"):
+        with Image.open(file.file) as img:
+            img.save(compressed_file, format=img.format, optimize=True, quality=85)
+    else:
+        with gzip.GzipFile(fileobj=compressed_file, mode="wb") as gz:
+            gz.write(file.file.read())
+
+    compressed_file.seek(0)
+    return compressed_file
