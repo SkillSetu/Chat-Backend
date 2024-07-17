@@ -24,7 +24,8 @@ session.headers.update(
 
 
 async def send_push_message(client_id: str, message: str, extra: dict = None):
-    token = await get_push_token(client_id)
+    # token = await get_push_token(client_id)
+    token = "ExponentPushToken[vtWaP9A3728g3_HR0RUYpW]"
 
     try:
         response = PushClient(session=session).publish(
