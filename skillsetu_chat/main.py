@@ -156,6 +156,25 @@ async def get_token(user_id: str):
         )
 
 
+@app.post("/send_push_message")
+async def send_push_message_endpoint(
+    client_id: str = Form(...),
+    message: str = Form(...),
+    extra: dict = Form(None),
+):
+    try:
+        response = await send_push_message(client_id, message, extra)
+        return response
+    except HTTPException as e:
+        raise e
+    except Exception as e:
+        logger.error(f"Error sending push message: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to send push message",
+        )
+
+
 @app.post("/upload_files")
 async def upload_files(
     files: List[UploadFile] = File(...),
