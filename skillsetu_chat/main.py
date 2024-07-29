@@ -15,13 +15,13 @@ from fastapi.middleware.cors import CORSMiddleware
 from .utils.manager import manager
 from .utils.services import (
     get_current_user,
-    get_chat_collection_name,
     create_access_token,
     handle_send_chat_message,
     compress_file,
+    get_chat,
 )
 from .utils.database import db
-from .utils.models import ChatMessage
+from .utils.models import Message
 import boto3
 from botocore.exceptions import ClientError
 from fastapi import File, UploadFile, Form
@@ -82,13 +82,12 @@ async def websocket_endpoint(websocket: WebSocket, token: str):
         while True:
             data = await websocket.receive_json()
             try:
-                chat_message = ChatMessage(**data)
+                data["sender"] = user_id
+                chat_message = Message(**data)
             except ValueError as e:
                 logger.error(f"Invalid message format: {str(e)}")
                 await websocket.send_json({"error": "Invalid message format"})
                 continue
-
-            chat_message.sender = user_id
 
             if not chat_message.receiver or not chat_message.message:
                 await websocket.send_json({"error": "Missing receiver or message"})
@@ -121,20 +120,9 @@ async def get_chat_history(
     other_user_id: str, current_user: str = Depends(get_current_user)
 ):
     try:
-        chat_collection_name = get_chat_collection_name(current_user, other_user_id)
-        chat_collection = db[chat_collection_name]
+        chat = await get_chat(current_user, other_user_id)
+        return chat["messages"] if chat else []
 
-        cursor = chat_collection.find(
-            {
-                "$or": [
-                    {"sender": current_user, "receiver": other_user_id},
-                    {"sender": other_user_id, "receiver": current_user},
-                ]
-            }
-        ).sort("timestamp", 1)
-
-        chat_history = await cursor.to_list(length=None)
-        return [ChatMessage(**chat).dict() for chat in chat_history]
     except Exception as e:
         logger.error(f"Error retrieving chat history: {str(e)}")
         raise HTTPException(
@@ -197,7 +185,7 @@ async def upload_files(
 
             # Compress the file
             compressed_file = compress_file(file)
-            chatid = get_chat_collection_name(current_user_id, other_user_id)
+            chatid = get_chat(current_user_id, other_user_id)["_id"]
             file_name = f"{chatid}/{file.filename}"
             content_type = (
                 "application/gzip"

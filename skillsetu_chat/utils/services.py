@@ -5,7 +5,7 @@ from datetime import datetime, timedelta
 from fastapi.security import OAuth2PasswordBearer
 from .manager import manager
 from .database import db
-from .models import ChatMessage, FileData
+from .models import ChatMessage, FileData, Message
 import io
 import gzip
 from PIL import Image
@@ -63,44 +63,47 @@ async def get_current_user(token: str = Depends(oauth2_scheme)):
     return user_id
 
 
-def get_chat_collection_name(user1_id: str, user2_id: str) -> str:
-    try:
-        clean_id1 = "".join(filter(str.isalnum, str(user1_id)))
-        clean_id2 = "".join(filter(str.isalnum, str(user2_id)))
+async def get_chat(userId1: str, userId2: str):
+    users = sorted([userId1, userId2])
+    chat = await db.get_collection("messages").find_one({"users": users})
+    if chat:
+        return chat
 
-        sorted_ids = sorted([clean_id1, clean_id2])
-
-        return f"chat_{sorted_ids[0]}_{sorted_ids[1]}"
-    except Exception as e:
-        logger.error(f"Error generating chat collection name: {str(e)}")
-        raise ValueError("Invalid user IDs")
+    return None
 
 
-async def handle_send_chat_message(chat_message: ChatMessage):
-    try:
-        chat_collection_name = get_chat_collection_name(
-            chat_message.sender, chat_message.receiver
+async def handle_send_chat_message(chat_message: Message):
+    messages = db.get_collection("messages")
+
+    chat_doc = await get_chat(chat_message.sender, chat_message.receiver)
+
+    if chat_doc:
+        await messages.update_one(
+            {"_id": chat_doc["_id"]},
+            {
+                "$push": {"messages": chat_message.dict()},
+                "$set": {"last_updated": datetime.utcnow()},
+            },
         )
-        chat_collection = db[chat_collection_name]
+    else:
+        new_chat = ChatMessage(
+            messages=[chat_message.dict()],
+            users=[chat_message.sender, chat_message.receiver],
+            created_at=datetime.utcnow(),
+            last_updated=datetime.utcnow(),
+        )
+        await messages.insert_one(new_chat.dict())
 
-        chat_dict = chat_message.dict(exclude={"id"})
-        new_message = await chat_collection.insert_one(chat_dict)
-
-        chat_message.id = str(new_message.inserted_id)
-
-        message_json = chat_message.model_dump_json()
-        await manager.send_personal_message(message_json, chat_message.sender)
-        await manager.send_personal_message(message_json, chat_message.receiver)
-    except Exception as e:
-        logger.error(f"Error handling chat message: {str(e)}")
-        raise DatabaseOperationError("Failed to send chat message")
+    message_json = chat_message.model_dump_json()
+    await manager.send_personal_message(message_json, chat_message.sender)
+    await manager.send_personal_message(message_json, chat_message.receiver)
 
 
 def create_chat_message(data: dict) -> ChatMessage:
     try:
         if "file" in data and data["file"]:
             data["file"] = FileData(**data["file"])
-        return ChatMessage(**data)
+        return Message(**data)
     except Exception as e:
         logger.error(f"Error creating chat message: {str(e)}")
         raise ValueError("Invalid chat message data")
