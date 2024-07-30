@@ -1,7 +1,7 @@
 from pydantic import BaseModel, Field
 from datetime import datetime
 from bson import ObjectId
-from typing import Optional
+from typing import Optional, Literal
 
 
 class FileData(BaseModel):
@@ -13,6 +13,7 @@ class FileData(BaseModel):
 class Message(BaseModel):
     sender: Optional[str] = None
     receiver: str
+    status: Literal["sent", "delivered", "read"] = "sent"
     message: str
     file: Optional[FileData] = None
     created_at: datetime = Field(default_factory=datetime.utcnow)

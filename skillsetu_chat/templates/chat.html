@@ -191,14 +191,29 @@
 				};
 			}
 
+			function getStatusIcon(status) {
+				switch (status) {
+					case "sent":
+						return "✓";
+					case "delivered":
+						return "✓✓";
+					case "read":
+						return '<span style="color: #4682B4;">✓✓</span>';
+					default:
+						return "✓";
+				}
+			}
+
 			function displayMessage(messageData) {
 				const messages = document.getElementById("messages");
 				const message = document.createElement("div");
 
 				message.id = messageData.id;
-				message.textContent = `${messageData.sender === currentUserId ? "You" : messageData.sender}: ${
-					messageData.message
-				}`;
+
+				const statusIcon = getStatusIcon(messageData.status);
+				message.innerHTML = `${statusIcon} ${
+					messageData.sender === currentUserId ? "You" : messageData.sender
+				}: ${messageData.message}`;
 
 				if (messageData.attachments) {
 					const attachments = document.createElement("div");
@@ -274,6 +289,7 @@
 						id: msg._id,
 						sender: msg.sender,
 						receiver: msg.receiver,
+						status: msg.status,
 						message: msg.message,
 						timestamp: msg.timestamp,
 						attachments: msg.attachments
