@@ -19,10 +19,19 @@ class ConnectionManager:
                 json.dumps({"type": "message", "data": message})
             )
 
-    async def send_receipt_update(self, message: str, user_id: str):
+    async def send_receipt_update(
+        self, message_id: str, user_id: str, updated_status: str
+    ):
         if user_id in self.active_connections:
             await self.active_connections[user_id].send_text(
-                json.dumps({"type": "receipt", "data": message})
+                json.dumps(
+                    {
+                        "type": "receipt_update",
+                        "data": json.dumps(
+                            {"message_id": message_id, "status": updated_status}
+                        ),
+                    }
+                )
             )
 
     async def is_connected(self, user_id: str):

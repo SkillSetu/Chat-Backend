@@ -74,7 +74,6 @@ async def get_chat(userId1: str, userId2: str):
 
 async def handle_send_chat_message(chat_message: Message):
     messages = db.get_collection("messages")
-
     chat_doc = await get_chat(chat_message.sender, chat_message.receiver)
 
     if chat_doc:
@@ -93,15 +92,30 @@ async def handle_send_chat_message(chat_message: Message):
             last_updated=datetime.utcnow(),
         )
         await messages.insert_one(new_chat.dict())
+        chat_doc = await get_chat(chat_message.sender, chat_message.receiver)
 
     message_json = chat_message.model_dump_json()
     await manager.send_personal_message(message_json, chat_message.sender)
     await manager.send_personal_message(message_json, chat_message.receiver)
 
-    # update in database delivered, there is no message id in the message. set the status to "delivered"
+    # update the status of the message to delivered on the database
+
     await messages.update_one(
-        {"users": sorted([chat_message.sender, chat_message.receiver])},
-        {"$set": {"messages.$[].status": "delivered"}},
+        {"_id": chat_doc["_id"], "messages.id": chat_message.id},
+        {"$set": {"messages.$.status": "delivered"}},
+    )
+
+    # send trigger to update the deliver status of the message by websocket
+
+    await manager.send_receipt_update(
+        user_id=chat_message.sender,
+        message_id=chat_message.id,
+        updated_status="delivered",
+    )
+    await manager.send_receipt_update(
+        user_id=chat_message.receiver,
+        message_id=chat_message.id,
+        updated_status="delivered",
     )
 
 

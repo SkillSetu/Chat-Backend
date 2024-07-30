@@ -190,6 +190,16 @@
 					if (type === "message") {
 						displayMessage(data);
 					}
+
+					if (type === "receipt_update") {
+						const message_id = data.message_id;
+						const status = data.status;
+
+						const message = document.getElementById(message_id);
+						if (message) {
+							message.innerHTML = `${getStatusIcon(status)} ${message.innerHTML.slice(2)}`;
+						}
+					}
 				};
 
 				ws.onclose = function (event) {

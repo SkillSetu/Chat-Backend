@@ -11,6 +11,7 @@ class FileData(BaseModel):
 
 
 class Message(BaseModel):
+    id: str = Field(default_factory=lambda: str(ObjectId()), alias="_id")
     sender: Optional[str] = None
     receiver: str
     status: Literal["sent", "delivered", "read"] = "sent"
