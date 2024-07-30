@@ -121,7 +121,29 @@ async def get_chat_history(
 ):
     try:
         chat = await get_chat(current_user, other_user_id)
+
+        # mark all messages as read
+
         return chat["messages"] if chat else []
+
+    except Exception as e:
+        logger.error(f"Error retrieving chat history: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to retrieve chat history",
+        )
+
+
+@app.get("/chat_history")
+async def get_chat_history(current_user: str = Depends(get_current_user)):
+    try:
+        chat = (
+            await db.get_collection("messages")
+            .find({"users": current_user})
+            .to_list(length=1000)
+        )
+
+        return chat
 
     except Exception as e:
         logger.error(f"Error retrieving chat history: {str(e)}")

@@ -182,7 +182,14 @@
 
 				ws.onmessage = function (event) {
 					const messageData = JSON.parse(event.data);
-					displayMessage(messageData);
+					const type = messageData.type;
+					const data = JSON.parse(messageData.data);
+
+					console.log("Received message:", messageData);
+
+					if (type === "message") {
+						displayMessage(data);
+					}
 				};
 
 				ws.onclose = function (event) {

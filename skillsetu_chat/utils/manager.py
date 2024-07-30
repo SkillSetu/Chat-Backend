@@ -1,4 +1,5 @@
 from fastapi import WebSocket
+import json
 
 
 class ConnectionManager:
@@ -14,7 +15,15 @@ class ConnectionManager:
 
     async def send_personal_message(self, message: str, user_id: str):
         if user_id in self.active_connections:
-            await self.active_connections[user_id].send_text(message)
+            await self.active_connections[user_id].send_text(
+                json.dumps({"type": "message", "data": message})
+            )
+
+    async def send_receipt_update(self, message: str, user_id: str):
+        if user_id in self.active_connections:
+            await self.active_connections[user_id].send_text(
+                json.dumps({"type": "receipt", "data": message})
+            )
 
     async def is_connected(self, user_id: str):
         return user_id in self.active_connections

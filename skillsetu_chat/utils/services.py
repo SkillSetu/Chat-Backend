@@ -98,6 +98,12 @@ async def handle_send_chat_message(chat_message: Message):
     await manager.send_personal_message(message_json, chat_message.sender)
     await manager.send_personal_message(message_json, chat_message.receiver)
 
+    # update in database delivered, there is no message id in the message. set the status to "delivered"
+    await messages.update_one(
+        {"users": sorted([chat_message.sender, chat_message.receiver])},
+        {"$set": {"messages.$[].status": "delivered"}},
+    )
+
 
 def create_chat_message(data: dict) -> ChatMessage:
     try:
