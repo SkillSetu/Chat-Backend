@@ -21,7 +21,6 @@ class Message(BaseModel):
 
 
 class ChatMessage(BaseModel):
-    id: str = Field(default_factory=lambda: str(ObjectId()), alias="_id")
     messages: list[Message]
     users: list[str]
     created_at: datetime = Field(default_factory=datetime.utcnow)

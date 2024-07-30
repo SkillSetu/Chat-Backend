@@ -1,32 +1,37 @@
 import os
+
+import logging
+from typing import List
+from dotenv import load_dotenv
+
 from fastapi import (
+    File,
+    Form,
+    Depends,
     FastAPI,
     WebSocket,
     WebSocketDisconnect,
     Request,
-    Depends,
     HTTPException,
     status,
+    UploadFile,
 )
 from fastapi.templating import Jinja2Templates
-from fastapi.responses import HTMLResponse, JSONResponse
-import logging
+from fastapi.responses import HTMLResponse
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+
+
 from .utils.manager import manager
 from .utils.services import (
     get_current_user,
     create_access_token,
     handle_send_chat_message,
-    compress_file,
     get_chat,
 )
 from .utils.database import db
 from .utils.models import Message
-import boto3
-from botocore.exceptions import ClientError
-from fastapi import File, UploadFile, Form
-from typing import List
-from dotenv import load_dotenv
+from .utils.s3 import process_and_upload_file
 from .utils.notifications import send_push_message
 
 load_dotenv()
@@ -43,14 +48,6 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
-)
-
-MAX_FILE_SIZE = 10 * 1024 * 1024
-s3_client = boto3.client(
-    "s3",
-    aws_access_key_id=os.getenv("AWS_ACCESS_KEY_ID"),
-    aws_secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY"),
-    region_name=os.getenv("AWS_REGION"),
 )
 
 
@@ -192,62 +189,19 @@ async def upload_files(
     other_user_id: str = Form(...),
 ):
     try:
-        uploaded_files = []
-        for file in files:
-            # Check file size
-            file.file.seek(0, 2)
-            file_size = file.file.tell()
-            file.file.seek(0)
-
-            if file_size > MAX_FILE_SIZE:
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"File {file.filename} exceeds the maximum size limit of {MAX_FILE_SIZE / (1024 * 1024)} MB",
-                )
-
-            # Compress the file
-            compressed_file = compress_file(file)
-            chatid = get_chat(current_user_id, other_user_id)["_id"]
-            file_name = f"{chatid}/{file.filename}"
-            content_type = (
-                "application/gzip"
-                if not file.content_type.startswith("image")
-                else file.content_type
-            )
-
-            s3_client.upload_fileobj(
-                compressed_file,
-                os.getenv("S3_BUCKET_NAME"),
-                file_name,
-                ExtraArgs={"ContentType": content_type},
-            )
-
-            # Generate the URL for the uploaded file
-            url = f"https://{os.getenv('S3_BUCKET_NAME')}.s3.amazonaws.com/{file_name}"
-
-            uploaded_files.append(
-                {
-                    "original_file_name": file.filename,
-                    "stored_file_name": file_name,
-                    "url": url,
-                }
-            )
+        chatid = get_chat(current_user_id, other_user_id)["_id"]
+        uploaded_files = [process_and_upload_file(file, chatid) for file in files]
 
         return {
             "message": f"{len(uploaded_files)} file(s) uploaded successfully",
             "files": uploaded_files,
         }
 
-    except ClientError as e:
-        logger.error(f"Error uploading file(s) to S3: {str(e)}")
-        raise HTTPException(status_code=500, detail="Failed to upload file(s)")
-
     except HTTPException as he:
         raise he
-
     except Exception as e:
-        logger.error(f"Unexpected error during file upload: {str(e)}")
-        raise HTTPException(status_code=500, detail="An unexpected error occurred")
+        logger.error(f"Error during file upload: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to upload file(s)")
 
 
 @app.exception_handler(HTTPException)
@@ -265,3 +219,9 @@ async def general_exception_handler(request: Request, exc: Exception):
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
         content={"message": "An unexpected error occurred"},
     )
+
+
+if __name__ == "__main__":
+    import uvicorn
+
+    uvicorn.run(app, host="0.0.0.0", port=8000)

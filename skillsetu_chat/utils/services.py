@@ -86,7 +86,7 @@ async def handle_send_chat_message(chat_message: Message):
         )
     else:
         new_chat = ChatMessage(
-            messages=[chat_message.dict()],
+            messages=[chat_message],
             users=[chat_message.sender, chat_message.receiver],
             created_at=datetime.utcnow(),
             last_updated=datetime.utcnow(),
