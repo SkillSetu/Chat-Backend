@@ -348,7 +348,10 @@
 					chatDiv.style.cursor = "pointer";
 					chatDiv.style.marginRight = "10px";
 
-					chatDiv.onclick = () => fetchChatHistory(chat.users.find((user) => user !== currentUserId));
+					chatDiv.onclick = () => {
+						fetchChatHistory(chat.users.find((user) => user !== currentUserId));
+						document.getElementById("receiverId").value = chat.users.find((user) => user !== currentUserId);
+					};
 					document.querySelector(".all-chats").appendChild(chatDiv);
 				}
 

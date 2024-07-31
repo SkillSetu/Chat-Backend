@@ -7,6 +7,9 @@ import io
 import gzip
 from PIL import Image
 import logging
+from dotenv import load_dotenv
+
+load_dotenv(override=True)
 
 MAX_FILE_SIZE = 10 * 1024 * 1024  # 10 MB
 

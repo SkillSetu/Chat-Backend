@@ -2,8 +2,6 @@ import os
 
 import logging
 from typing import List
-from dotenv import load_dotenv
-import json
 
 from fastapi import (
     File,
@@ -34,8 +32,6 @@ from .utils.database import db
 from .utils.models import Message
 from .utils.s3 import process_and_upload_file
 from .utils.notifications import send_push_message
-
-load_dotenv()
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
 
