@@ -206,3 +206,25 @@ def compress_file(file: UploadFile) -> io.BytesIO:
 
     compressed_file.seek(0)
     return compressed_file
+
+
+async def get_all_user_chats(user_id: str) -> list[Message]:
+    """Get all chats for a user.
+
+    Args:
+        user_id (str): The user ID.
+
+    Returns:
+        list[Message]: A list of chat messages.
+    """
+    chats = (
+        await db.get_collection("messages")
+        .find({"users": user_id})
+        .to_list(length=1000)
+    )
+
+    # convert all ObjectIds to strings for JSON serialization
+    for chat in chats:
+        chat["_id"] = str(chat["_id"])
+
+    return chats

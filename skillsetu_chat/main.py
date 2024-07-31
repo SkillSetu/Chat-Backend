@@ -18,7 +18,6 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 
-from .utils.database import db
 from .utils.manager import manager
 from .utils.models import Message
 from .utils.notifications import send_push_message
@@ -28,6 +27,7 @@ from .utils.services import (
     get_chat,
     get_current_user,
     handle_send_chat_message,
+    get_all_user_chats,
 )
 
 
@@ -113,9 +113,6 @@ async def get_chat_history(
 ):
     try:
         chat = await get_chat(current_user, other_user_id)
-
-        # mark all messages as read
-
         return chat["messages"] if chat else []
 
     except Exception as e:
@@ -129,16 +126,7 @@ async def get_chat_history(
 @app.get("/chat_history")
 async def get_user_chat_history(current_user: str = Depends(get_current_user)):
     try:
-        chats = (
-            await db.get_collection("messages")
-            .find({"users": current_user})
-            .to_list(length=1000)
-        )
-        # convert all ObjectIds to strings for JSON serialization
-        for chat in chats:
-            chat["_id"] = str(chat["_id"])
-
-        return chats
+        return await get_all_user_chats(current_user)
 
     except Exception as e:
         logger.error(f"Error retrieving chat history: {str(e)}")
