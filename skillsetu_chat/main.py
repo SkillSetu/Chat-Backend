@@ -3,6 +3,7 @@ import os
 import logging
 from typing import List
 from dotenv import load_dotenv
+import json
 
 from fastapi import (
     File,
@@ -134,13 +135,16 @@ async def get_chat_history(
 @app.get("/chat_history")
 async def get_chat_history(current_user: str = Depends(get_current_user)):
     try:
-        chat = (
+        chats = (
             await db.get_collection("messages")
             .find({"users": current_user})
             .to_list(length=1000)
         )
+        # convert all ObjectIds to strings for JSON serialization
+        for chat in chats:
+            chat["_id"] = str(chat["_id"])
 
-        return chat
+        return chats
 
     except Exception as e:
         logger.error(f"Error retrieving chat history: {str(e)}")

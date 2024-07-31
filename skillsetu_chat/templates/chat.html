@@ -122,6 +122,13 @@
 			a:hover {
 				text-decoration: underline;
 			}
+
+			.all-chats {
+				padding: 10px;
+				overflow-y: auto;
+				max-height: 100px;
+				display: flex;
+			}
 		</style>
 	</head>
 	<body>
@@ -137,6 +144,7 @@
 					<p>Your ID: <span id="currentUserId"></span></p>
 					<input type="text" id="receiverId" placeholder="Receiver's user ID" />
 				</div>
+				<div class="all-chats"></div>
 				<div class="chat-messages">
 					<div id="messages"></div>
 				</div>
@@ -167,10 +175,13 @@
 				const data = await response.json();
 				token = data.access_token;
 
+				await fetchAllChats();
+
 				document.getElementById("login").style.display = "none";
 				document.getElementById("chat").style.display = "flex";
 				document.getElementById("chat").style.flexDirection = "column";
 				document.getElementById("currentUserId").textContent = currentUserId;
+				document.getElementById("receiverId").focus();
 
 				connectWebSocket();
 			}
@@ -312,6 +323,36 @@
 						attachments: msg.attachments
 					});
 				});
+			}
+
+			async function fetchAllChats() {
+				const response = await fetch("/chat_history/", {
+					headers: {
+						Authorization: `Bearer ${token}`
+					}
+				});
+				const chats = await response.json();
+
+				console.log("All chats:", chats);
+
+				for (let chat of chats) {
+					const chatDiv = document.createElement("div");
+					chatDiv.textContent = `Chat: ${chat.users.join(", ")}`;
+
+					chatDiv.style.padding = "10px";
+					chatDiv.style.border = "1px solid #ddd";
+					chatDiv.style.borderRadius = "8px";
+					chatDiv.style.marginBottom = "10px";
+					chatDiv.style.backgroundColor = "#f0f0f0";
+					chatDiv.style.color = "#075e54";
+					chatDiv.style.cursor = "pointer";
+					chatDiv.style.marginRight = "10px";
+
+					chatDiv.onclick = () => fetchChatHistory(chat.users.find((user) => user !== currentUserId));
+					document.querySelector(".all-chats").appendChild(chatDiv);
+				}
+
+				return chats;
 			}
 
 			function attachDocument() {
