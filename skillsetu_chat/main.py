@@ -187,7 +187,8 @@ async def upload_files(
     other_user_id: str = Form(...),
 ):
     try:
-        chatid = get_chat(current_user_id, other_user_id)["_id"]
+        chat = await get_chat(current_user_id, other_user_id)
+        chatid = chat["_id"] if chat else None
         uploaded_files = [process_and_upload_file(file, chatid) for file in files]
 
         return {

@@ -17,7 +17,7 @@ class Message(BaseModel):
     receiver: str
     status: Literal["sent", "delivered", "read"] = "sent"
     message: str
-    file: Optional[FileData] = None
+    attachments: Optional[list[str]] = None
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
 
