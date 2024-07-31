@@ -1,17 +1,18 @@
-import io
 import gzip
+import io
 import logging
 from datetime import datetime, timedelta
 from typing import Dict, Optional
 
+from PIL import Image
 from fastapi import Depends, HTTPException, UploadFile, status
 from fastapi.security import OAuth2PasswordBearer
 from jose import ExpiredSignatureError, JWTError, jwt
-from PIL import Image
 
 from .database import db
 from .manager import manager
 from .models import ChatMessage, FileData, Message
+
 
 # Constants
 SECRET_KEY = "your-secret-key"  # TODO: Move to environment variable

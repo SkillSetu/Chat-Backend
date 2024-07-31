@@ -1,5 +1,6 @@
-from fastapi import WebSocket
 import json
+
+from fastapi import WebSocket
 
 
 class ConnectionManager:

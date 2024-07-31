@@ -1,3 +1,6 @@
+import os
+
+import requests
 from exponent_server_sdk import (
     DeviceNotRegisteredError,
     PushClient,
@@ -5,11 +8,11 @@ from exponent_server_sdk import (
     PushServerError,
     PushTicketError,
 )
-import os
-import requests
-from requests.exceptions import ConnectionError, HTTPError
 from fastapi import HTTPException
+from requests.exceptions import ConnectionError, HTTPError
+
 from .database import db
+
 
 # Optionally providing an access token within a session if you have enabled push security
 session = requests.Session()

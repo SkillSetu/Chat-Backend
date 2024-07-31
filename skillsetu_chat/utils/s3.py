@@ -1,12 +1,14 @@
-import os
-from fastapi import HTTPException, UploadFile
-from botocore.exceptions import ClientError
-import boto3
-import io
 import gzip
-from PIL import Image
+import io
 import logging
+import os
+
+import boto3
+from PIL import Image
+from botocore.exceptions import ClientError
 from dotenv import load_dotenv
+from fastapi import HTTPException, UploadFile
+
 
 load_dotenv(override=True)
 

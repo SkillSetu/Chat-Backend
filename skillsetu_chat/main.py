@@ -1,37 +1,35 @@
-import os
-
 import logging
+import os
 from typing import List
 
 from fastapi import (
-    File,
-    Form,
     Depends,
     FastAPI,
+    File,
+    Form,
+    HTTPException,
+    Request,
+    UploadFile,
     WebSocket,
     WebSocketDisconnect,
-    Request,
-    HTTPException,
     status,
-    UploadFile,
 )
-from fastapi.templating import Jinja2Templates
-from fastapi.responses import HTMLResponse
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.templating import Jinja2Templates
 
-
-from .utils.manager import manager
-from .utils.services import (
-    get_current_user,
-    create_access_token,
-    handle_send_chat_message,
-    get_chat,
-)
 from .utils.database import db
+from .utils.manager import manager
 from .utils.models import Message
-from .utils.s3 import process_and_upload_file
 from .utils.notifications import send_push_message
+from .utils.s3 import process_and_upload_file
+from .utils.services import (
+    create_access_token,
+    get_chat,
+    get_current_user,
+    handle_send_chat_message,
+)
+
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
 
