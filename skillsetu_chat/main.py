@@ -129,7 +129,7 @@ async def get_chat_history(
 
 
 @app.get("/chat_history")
-async def get_chat_history(current_user: str = Depends(get_current_user)):
+async def get_user_chat_history(current_user: str = Depends(get_current_user)):
     try:
         chats = (
             await db.get_collection("messages")

@@ -1,44 +1,72 @@
-import logging
-from jose import JWTError, jwt, ExpiredSignatureError
-from fastapi import Depends, HTTPException, status, UploadFile
-from datetime import datetime, timedelta
-from fastapi.security import OAuth2PasswordBearer
-from .manager import manager
-from .database import db
-from .models import ChatMessage, FileData, Message
 import io
 import gzip
+import logging
+from datetime import datetime, timedelta
+from typing import Dict, Optional
+
+from fastapi import Depends, HTTPException, UploadFile, status
+from fastapi.security import OAuth2PasswordBearer
+from jose import ExpiredSignatureError, JWTError, jwt
 from PIL import Image
 
-SECRET_KEY = "your-secret-key"
+from .database import db
+from .manager import manager
+from .models import ChatMessage, FileData, Message
+
+# Constants
+SECRET_KEY = "your-secret-key"  # TODO: Move to environment variable
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
 
+# Setup
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 logger = logging.getLogger(__name__)
 
 
 class TokenCreationError(Exception):
-    pass
+    """Custom exception for token creation errors."""
 
 
 class DatabaseOperationError(Exception):
-    pass
+    """Custom exception for database operation errors."""
 
 
-def create_access_token(data: dict):
+def create_access_token(data: Dict[str, str]) -> str:
+    """
+    Create a new access token.
+
+    Args:
+        data: A dictionary containing the data to encode in the token.
+
+    Returns:
+        str: The encoded JWT token.
+
+    Raises:
+        TokenCreationError: If token creation fails.
+    """
     try:
         to_encode = data.copy()
         expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
         to_encode.update({"exp": expire})
-        encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
-        return encoded_jwt
+        return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     except Exception as e:
         logger.error(f"Error creating access token: {str(e)}")
-        raise TokenCreationError("Failed to create access token")
+        raise TokenCreationError("Failed to create access token") from e
 
 
-async def get_current_user(token: str = Depends(oauth2_scheme)):
+async def get_current_user(token: str = Depends(oauth2_scheme)) -> str:
+    """
+    Validate the access token and return the current user.
+
+    Args:
+        token: The JWT token to validate.
+
+    Returns:
+        str: The user ID extracted from the token.
+
+    Raises:
+        HTTPException: If the token is invalid or expired.
+    """
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
@@ -50,6 +78,7 @@ async def get_current_user(token: str = Depends(oauth2_scheme)):
         user_id: str = payload.get("sub")
         if user_id is None:
             raise credentials_exception
+        return user_id
     except ExpiredSignatureError:
         logger.warning("Token has expired")
         raise HTTPException(
@@ -59,77 +88,112 @@ async def get_current_user(token: str = Depends(oauth2_scheme)):
         )
     except JWTError as e:
         logger.error(f"JWT error: {str(e)}")
-        raise credentials_exception
-    return user_id
+        raise credentials_exception from e
 
 
-async def get_chat(userId1: str, userId2: str):
-    users = sorted([userId1, userId2])
-    chat = await db.get_collection("messages").find_one({"users": users})
-    if chat:
-        return chat
+async def get_chat(user_id1: str, user_id2: str) -> Optional[Dict]:
+    """
+    Retrieve a chat between two users.
 
-    return None
+    Args:
+        user_id1: The ID of the first user.
+        user_id2: The ID of the second user.
+
+    Returns:
+        Optional[Dict]: The chat document if found, None otherwise.
+    """
+    users = sorted([user_id1, user_id2])
+    return await db.get_collection("messages").find_one({"users": users})
 
 
-async def handle_send_chat_message(chat_message: Message):
+async def handle_send_chat_message(chat_message: Message) -> None:
+    """
+    Handle sending a chat message, including database updates and WebSocket notifications.
+
+    Args:
+        chat_message: The message to be sent.
+
+    Raises:
+        DatabaseOperationError: If database operations fail.
+    """
     messages = db.get_collection("messages")
     chat_doc = await get_chat(chat_message.sender, chat_message.receiver)
 
-    if chat_doc:
+    try:
+        if chat_doc:
+            await messages.update_one(
+                {"_id": chat_doc["_id"]},
+                {
+                    "$push": {"messages": chat_message.dict()},
+                    "$set": {"last_updated": datetime.utcnow()},
+                },
+            )
+        else:
+            new_chat = ChatMessage(
+                messages=[chat_message],
+                users=[chat_message.sender, chat_message.receiver],
+                created_at=datetime.utcnow(),
+                last_updated=datetime.utcnow(),
+            )
+            await messages.insert_one(new_chat.dict())
+            chat_doc = await get_chat(chat_message.sender, chat_message.receiver)
+
+        message_json = chat_message.model_dump_json()
+        await manager.send_personal_message(message_json, chat_message.sender)
+        await manager.send_personal_message(message_json, chat_message.receiver)
+
         await messages.update_one(
-            {"_id": chat_doc["_id"]},
-            {
-                "$push": {"messages": chat_message.dict()},
-                "$set": {"last_updated": datetime.utcnow()},
-            },
+            {"_id": chat_doc["_id"], "messages.id": chat_message.id},
+            {"$set": {"messages.$.status": "delivered"}},
         )
-    else:
-        new_chat = ChatMessage(
-            messages=[chat_message],
-            users=[chat_message.sender, chat_message.receiver],
-            created_at=datetime.utcnow(),
-            last_updated=datetime.utcnow(),
+
+        await manager.send_receipt_update(
+            user_id=chat_message.sender,
+            message_id=chat_message.id,
+            updated_status="delivered",
         )
-        await messages.insert_one(new_chat.dict())
-        chat_doc = await get_chat(chat_message.sender, chat_message.receiver)
-
-    message_json = chat_message.model_dump_json()
-    await manager.send_personal_message(message_json, chat_message.sender)
-    await manager.send_personal_message(message_json, chat_message.receiver)
-
-    # update the status of the message to delivered on the database
-
-    await messages.update_one(
-        {"_id": chat_doc["_id"], "messages.id": chat_message.id},
-        {"$set": {"messages.$.status": "delivered"}},
-    )
-
-    # send trigger to update the deliver status of the message by websocket
-
-    await manager.send_receipt_update(
-        user_id=chat_message.sender,
-        message_id=chat_message.id,
-        updated_status="delivered",
-    )
-    await manager.send_receipt_update(
-        user_id=chat_message.receiver,
-        message_id=chat_message.id,
-        updated_status="delivered",
-    )
+        await manager.send_receipt_update(
+            user_id=chat_message.receiver,
+            message_id=chat_message.id,
+            updated_status="delivered",
+        )
+    except Exception as e:
+        logger.error(f"Error handling chat message: {str(e)}")
+        raise DatabaseOperationError("Failed to handle chat message") from e
 
 
-def create_chat_message(data: dict) -> ChatMessage:
+def create_chat_message(data: Dict) -> Message:
+    """
+    Create a Message object from dictionary data.
+
+    Args:
+        data: A dictionary containing message data.
+
+    Returns:
+        Message: The created Message object.
+
+    Raises:
+        ValueError: If the message data is invalid.
+    """
     try:
         if "file" in data and data["file"]:
             data["file"] = FileData(**data["file"])
         return Message(**data)
     except Exception as e:
         logger.error(f"Error creating chat message: {str(e)}")
-        raise ValueError("Invalid chat message data")
+        raise ValueError("Invalid chat message data") from e
 
 
 def compress_file(file: UploadFile) -> io.BytesIO:
+    """
+    Compress the given file.
+
+    Args:
+        file: The UploadFile object to compress.
+
+    Returns:
+        io.BytesIO: A BytesIO object containing the compressed file data.
+    """
     compressed_file = io.BytesIO()
 
     if file.content_type.startswith("image"):

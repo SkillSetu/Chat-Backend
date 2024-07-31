@@ -1,5 +1,4 @@
 import os
-from typing import List
 from fastapi import HTTPException, UploadFile
 from botocore.exceptions import ClientError
 import boto3
@@ -34,7 +33,7 @@ def compress_file(file: UploadFile) -> io.BytesIO:
                 f.write(file.file.read())
         compressed_file.seek(0)
         return compressed_file
-    except Exception as e:
+    except Exception:
         raise HTTPException(status_code=500, detail="Failed to compress file")
 
 
