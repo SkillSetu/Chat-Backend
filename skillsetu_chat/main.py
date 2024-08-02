@@ -28,6 +28,7 @@ from .utils.services import (
     get_current_user,
     handle_send_chat_message,
     get_all_user_chats,
+    mark_messages_as_read,
 )
 
 
@@ -115,7 +116,11 @@ async def get_chat_history(
 ):
     try:
         chat = await get_chat(current_user, other_user_id)
-        return chat["messages"] if chat else []
+        await mark_messages_as_read(chat, current_user)
+
+        updated_chat = await get_chat(current_user, other_user_id)
+
+        return updated_chat["messages"] if chat else []
 
     except Exception as e:
         logger.error(f"Error retrieving chat history: {str(e)}")

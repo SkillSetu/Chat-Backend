@@ -166,6 +166,7 @@ async def handle_send_chat_message(chat_message: Message) -> None:
             message_id=chat_message.id,
             updated_status="delivered",
         )
+
     except Exception as e:
         logger.error(f"Error handling chat message: {str(e)}")
         raise DatabaseOperationError("Failed to handle chat message") from e
@@ -239,3 +240,37 @@ async def get_all_user_chats(user_id: str) -> list[Message]:
         chat["_id"] = str(chat["_id"])
 
     return chats
+
+
+async def mark_messages_as_read(chat: ChatMessage, current_user_id: str):
+    """Mark messages as read when a user reads a chat.
+
+    Args:
+        chat (ChatMessage): The chat to mark messages in.
+        current_user_id (str): The ID of the current user.
+
+    Raises:
+        DatabaseOperationError: If database operations fail.
+    """
+
+    messages = db.get_collection("messages")
+    all_messages = chat["messages"]
+    delivered_messages = [
+        message for message in all_messages if message["status"] == "delivered"
+    ]
+    to_update_delivered_messages = [
+        message
+        for message in delivered_messages
+        if message["receiver"] == current_user_id
+    ]
+
+    try:
+        for message in to_update_delivered_messages:
+            await messages.update_one(
+                {"_id": chat["_id"], "messages.id": message["id"]},
+                {"$set": {"messages.$.status": "read"}},
+            )
+
+    except Exception as e:
+        logger.error(f"Error marking messages as read: {str(e)}")
+        raise DatabaseOperationError("Failed to mark messages as read") from e

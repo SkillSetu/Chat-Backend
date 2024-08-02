@@ -8,6 +8,7 @@ class ConnectionManager:
 
     def __init__(self):
         self.active_connections: dict[str, WebSocket] = {}
+        self.active_chats: dict[str, dict] = {}
 
     async def connect(self, websocket: WebSocket, user_id: str):
         await websocket.accept()
