@@ -25,6 +25,18 @@ s3_client = boto3.client(
 
 
 def compress_file(file: UploadFile) -> io.BytesIO:
+    """Compress the given file.
+
+    Args:
+        file (UploadFile): The UploadFile object to compress.
+
+    Raises:
+        HTTPException: The file exceeds the maximum size limit.
+
+    Returns:
+        io.BytesIO: A BytesIO object containing the compressed file data.
+    """
+
     try:
         if file.content_type.startswith("image"):
             image = Image.open(file.file)
@@ -51,6 +63,21 @@ def compress_file(file: UploadFile) -> io.BytesIO:
 
 
 def process_and_upload_file(file: UploadFile, chatid: str) -> dict:
+    """Process and upload the given file to S3.
+
+    Args:
+        file (UploadFile): The UploadFile object to process and upload.
+        chatid (str): The chat ID.
+
+    Raises:
+        HTTPException: error uploading file to S3
+        HTTPException: file exceeds the maximum size limit
+        HTTPException: unexpected error processing file
+
+    Returns:
+        dict: A dictionary containing the original file name, stored file name, and URL.
+    """
+
     try:
         file.file.seek(0, 2)
         file_size = file.file.tell()

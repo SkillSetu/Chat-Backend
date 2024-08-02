@@ -24,10 +24,11 @@ from .utils.notifications import send_push_message
 from .utils.s3 import process_and_upload_file
 from .utils.services import (
     create_access_token,
+    get_all_user_chats,
     get_chat,
     get_current_user,
     handle_send_chat_message,
-    get_all_user_chats,
+    mark_messages_as_read,
 )
 
 
@@ -87,12 +88,14 @@ async def websocket_endpoint(websocket: WebSocket, token: str):
 
             try:
                 await handle_send_chat_message(chat_message)
-                if not await manager.is_connected(chat_message.receiver):
-                    await send_push_message(
-                        chat_message.receiver,
-                        f"New message from {user_id}",
-                        {"message": chat_message.message},
-                    )
+
+                # TODO: Uncomment this when push notifications are implemented
+                # if not await manager.is_connected(chat_message.receiver):
+                #     await send_push_message(
+                #         chat_message.receiver,
+                #         f"New message from {user_id}",
+                #         {"message": chat_message.message},
+                #     )
 
             except Exception as e:
                 logger.error(f"Error handling chat message: {str(e)}")
@@ -113,7 +116,11 @@ async def get_chat_history(
 ):
     try:
         chat = await get_chat(current_user, other_user_id)
-        return chat["messages"] if chat else []
+        await mark_messages_as_read(chat, current_user)
+
+        updated_chat = await get_chat(current_user, other_user_id)
+
+        return updated_chat["messages"] if chat else []
 
     except Exception as e:
         logger.error(f"Error retrieving chat history: {str(e)}")
