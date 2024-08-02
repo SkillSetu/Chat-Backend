@@ -1,12 +1,12 @@
-import os
 import gzip
 import io
 import logging
+import os
 from datetime import datetime, timedelta
 from typing import Dict, Optional
-from dotenv import load_dotenv
 
 from PIL import Image
+from dotenv import load_dotenv
 from fastapi import Depends, HTTPException, UploadFile, status
 from fastapi.security import OAuth2PasswordBearer
 from jose import ExpiredSignatureError, JWTError, jwt
@@ -14,6 +14,7 @@ from jose import ExpiredSignatureError, JWTError, jwt
 from .database import db
 from .manager import manager
 from .models import ChatMessage, FileData, Message
+
 
 load_dotenv(override=True)
 

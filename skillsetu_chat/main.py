@@ -24,10 +24,10 @@ from .utils.notifications import send_push_message
 from .utils.s3 import process_and_upload_file
 from .utils.services import (
     create_access_token,
+    get_all_user_chats,
     get_chat,
     get_current_user,
     handle_send_chat_message,
-    get_all_user_chats,
     mark_messages_as_read,
 )
 
