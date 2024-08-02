@@ -2,7 +2,7 @@
 <html>
 
 <head>
-	<title>SkillSetu Private Chat</title>
+	<title>Skillarena Chat</title>
 	<style>
 		body {
 			font-family: Arial, sans-serif;
@@ -158,7 +158,7 @@
 		</div>
 		<div id="chat" style="display: none">
 			<div class="chat-header">
-				<h1>SkillSetu Private Chat</h1>
+				<h1>Skillarena Chat</h1>
 				<p>Your ID: <span id="currentUserId"></span></p>
 				<input type="text" id="receiverId" placeholder="Receiver's user ID" />
 			</div>
@@ -255,7 +255,6 @@
 
 			if (messageData.attachments) {
 				const attachments = document.createElement("div");
-				attachments.textContent = "Attachments:";
 				message.appendChild(attachments);
 
 				messageData.attachments.forEach((attachment) => {

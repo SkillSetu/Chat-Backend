@@ -1,8 +1,10 @@
+import os
 import gzip
 import io
 import logging
 from datetime import datetime, timedelta
 from typing import Dict, Optional
+from dotenv import load_dotenv
 
 from PIL import Image
 from fastapi import Depends, HTTPException, UploadFile, status
@@ -13,9 +15,11 @@ from .database import db
 from .manager import manager
 from .models import ChatMessage, FileData, Message
 
+load_dotenv(override=True)
+
 
 # Constants
-SECRET_KEY = "your-secret-key"  # TODO: Move to environment variable
+ACCESS_TOKEN_SECRET = os.getenv("ACCESS_TOKEN_SECRET")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
 
@@ -45,11 +49,12 @@ def create_access_token(data: Dict[str, str]) -> str:
     Raises:
         TokenCreationError: If token creation fails.
     """
+
     try:
         to_encode = data.copy()
         expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
         to_encode.update({"exp": expire})
-        return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+        return jwt.encode(to_encode, ACCESS_TOKEN_SECRET, algorithm=ALGORITHM)
     except Exception as e:
         logger.error(f"Error creating access token: {str(e)}")
         raise TokenCreationError("Failed to create access token") from e
@@ -68,6 +73,7 @@ async def get_current_user(token: str = Depends(oauth2_scheme)) -> str:
     Raises:
         HTTPException: If the token is invalid or expired.
     """
+
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
@@ -75,7 +81,7 @@ async def get_current_user(token: str = Depends(oauth2_scheme)) -> str:
     )
 
     try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        payload = jwt.decode(token, ACCESS_TOKEN_SECRET, algorithms=[ALGORITHM])
         user_id: str = payload.get("sub")
         if user_id is None:
             raise credentials_exception
@@ -103,6 +109,7 @@ async def get_chat(user_id1: str, user_id2: str) -> Optional[Dict]:
     Returns:
         Optional[Dict]: The chat document if found, None otherwise.
     """
+
     users = sorted([user_id1, user_id2])
     return await db.get_collection("messages").find_one({"users": users})
 
@@ -117,6 +124,7 @@ async def handle_send_chat_message(chat_message: Message) -> None:
     Raises:
         DatabaseOperationError: If database operations fail.
     """
+
     messages = db.get_collection("messages")
     chat_doc = await get_chat(chat_message.sender, chat_message.receiver)
 
@@ -176,6 +184,7 @@ def create_chat_message(data: Dict) -> Message:
     Raises:
         ValueError: If the message data is invalid.
     """
+
     try:
         if "file" in data and data["file"]:
             data["file"] = FileData(**data["file"])
@@ -195,6 +204,7 @@ def compress_file(file: UploadFile) -> io.BytesIO:
     Returns:
         io.BytesIO: A BytesIO object containing the compressed file data.
     """
+
     compressed_file = io.BytesIO()
 
     if file.content_type.startswith("image"):
@@ -217,6 +227,7 @@ async def get_all_user_chats(user_id: str) -> list[Message]:
     Returns:
         list[Message]: A list of chat messages.
     """
+
     chats = (
         await db.get_collection("messages")
         .find({"users": user_id})

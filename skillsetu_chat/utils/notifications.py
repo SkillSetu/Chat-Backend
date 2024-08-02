@@ -14,7 +14,6 @@ from requests.exceptions import ConnectionError, HTTPError
 from .database import db
 
 
-# Optionally providing an access token within a session if you have enabled push security
 session = requests.Session()
 session.headers.update(
     {
@@ -27,15 +26,13 @@ session.headers.update(
 
 
 async def send_push_message(client_id: str, message: str, extra: dict = None):
-    # token = await get_push_token(client_id)
-    token = "ExponentPushToken[vtWaP9A3728g3_HR0RUYpW]"
+    token = await get_push_token(client_id)
 
     try:
         response = PushClient(session=session).publish(
             PushMessage(to=token, body=message, data=extra)
         )
     except PushServerError as exc:
-        # Encountered some likely formatting/validation error.
         error_data = {
             "token": token,
             "message": message,
@@ -43,31 +40,29 @@ async def send_push_message(client_id: str, message: str, extra: dict = None):
             "errors": exc.errors,
             "response_data": exc.response_data,
         }
+
         raise HTTPException(status_code=500, detail=f"Push Server Error: {error_data}")
+
     except (ConnectionError, HTTPError) as exc:
-        # Encountered some Connection or HTTP error
         error_data = {"token": token, "message": message, "extra": extra}
         raise HTTPException(
             status_code=503, detail=f"Connection or HTTP Error: {str(exc)}"
         )
 
     try:
-        # We got a response back, but we don't know whether it's an error yet.
-        # This call raises errors so we can handle them with normal exception flows.
         response.validate_response()
+
     except DeviceNotRegisteredError:
-        # Mark the push token as inactive
-        # Note: You'll need to implement this part based on your database setup
-        # await mark_push_token_inactive(token)
         raise HTTPException(status_code=410, detail=f"Device Not Registered: {token}")
+
     except PushTicketError as exc:
-        # Encountered some other per-notification error.
         error_data = {
             "token": token,
             "message": message,
             "extra": extra,
             "push_response": exc.push_response._asdict(),
         }
+
         raise HTTPException(status_code=500, detail=f"Push Ticket Error: {error_data}")
 
     return {"success": True, "response": response._asdict()}
@@ -82,5 +77,6 @@ async def get_push_token(client_id: str):
             raise HTTPException(
                 status_code=404, detail=f"Push token not found for {client_id}"
             )
+
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error fetching user: {str(e)}")

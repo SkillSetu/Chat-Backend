@@ -4,6 +4,8 @@ from fastapi import WebSocket
 
 
 class ConnectionManager:
+    """Manages WebSocket connections."""
+
     def __init__(self):
         self.active_connections: dict[str, WebSocket] = {}
 

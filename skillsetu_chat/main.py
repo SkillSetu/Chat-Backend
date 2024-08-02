@@ -87,12 +87,14 @@ async def websocket_endpoint(websocket: WebSocket, token: str):
 
             try:
                 await handle_send_chat_message(chat_message)
-                if not await manager.is_connected(chat_message.receiver):
-                    await send_push_message(
-                        chat_message.receiver,
-                        f"New message from {user_id}",
-                        {"message": chat_message.message},
-                    )
+
+                # TODO: Uncomment this when push notifications are implemented
+                # if not await manager.is_connected(chat_message.receiver):
+                #     await send_push_message(
+                #         chat_message.receiver,
+                #         f"New message from {user_id}",
+                #         {"message": chat_message.message},
+                #     )
 
             except Exception as e:
                 logger.error(f"Error handling chat message: {str(e)}")
