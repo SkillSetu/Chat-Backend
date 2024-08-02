@@ -176,7 +176,11 @@ async def upload_files(
 ):
     try:
         chat = await get_chat(current_user_id, other_user_id)
-        chatid = chat["_id"] if chat else None
+        chatid = chat["_id"]
+
+        if not chatid:
+            raise HTTPException(status_code=400, detail="Chat not found")
+
         uploaded_files = [process_and_upload_file(file, chatid) for file in files]
 
         return {
@@ -184,11 +188,12 @@ async def upload_files(
             "files": uploaded_files,
         }
 
-    except HTTPException as he:
-        raise he
+    except ValueError as ve:
+        logger.error(f"Validation error: {str(ve)}")
+
     except Exception as e:
-        logger.error(f"Error during file upload: {str(e)}")
-        raise HTTPException(status_code=500, detail="Failed to upload file(s)")
+        logger.error(f"Unexpected error during file upload: {str(e)}")
+        raise HTTPException(status_code=500, detail="An unexpected error occurred")
 
 
 @app.exception_handler(HTTPException)
