@@ -141,7 +141,7 @@ async def handle_send_chat_message(chat_message: Message) -> None:
         else:
             new_chat = ChatMessage(
                 messages=[chat_message],
-                users=[chat_message.sender, chat_message.receiver],
+                users=sorted([chat_message.sender, chat_message.receiver]),
                 created_at=datetime.utcnow(),
                 last_updated=datetime.utcnow(),
             )
@@ -275,3 +275,23 @@ async def mark_messages_as_read(chat: ChatMessage, current_user_id: str):
     except Exception as e:
         logger.error(f"Error marking messages as read: {str(e)}")
         raise DatabaseOperationError("Failed to mark messages as read") from e
+
+
+async def create_empty_chat(user_id: str, other_user_id: str) -> ChatMessage:
+    """Create an empty chat for a user.
+
+    Args:
+        user_id (str): The user ID.
+
+    Returns:
+        ChatMessage: The created chat message.
+    """
+
+    chat = ChatMessage(
+        messages=[],
+        users=sorted([user_id, other_user_id]),
+        created_at=datetime.utcnow(),
+        last_updated=datetime.utcnow(),
+    )
+    await db.get_collection("messages").insert_one(chat.dict())
+    return chat
