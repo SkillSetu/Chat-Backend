@@ -24,6 +24,9 @@ class Message(BaseModel):
 class ChatMessage(BaseModel):
     messages: list[Message]
     users: list[str]
+    is_blocked: bool = False
+    blocked_by: Optional[str] = None
+    jobId: Optional[str] = None
     created_at: datetime = Field(default_factory=datetime.utcnow)
     last_updated: datetime = Field(default_factory=datetime.utcnow)
 

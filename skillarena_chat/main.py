@@ -3,7 +3,6 @@ import os
 from typing import List
 
 from fastapi import (
-    Depends,
     FastAPI,
     File,
     Form,
@@ -19,8 +18,8 @@ from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 
 from .utils.manager import manager
+from .utils.middlewares import AuthMiddleware
 from .utils.models import Message
-from .utils.notifications import send_push_message
 from .utils.s3 import process_and_upload_file
 from .utils.services import (
     create_access_token,
@@ -50,6 +49,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+exempt_routes = ["/", "/get_token/{user_id}"]
+app.add_middleware(AuthMiddleware, exempt_routes=exempt_routes)
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -119,10 +121,9 @@ async def process_websocket_message(websocket: WebSocket, data: dict, user_id: s
 
 
 @app.get("/chat_history/{other_user_id}")
-async def get_chat_history(
-    other_user_id: str, current_user: str = Depends(get_current_user)
-):
+async def get_chat_history(request: Request, other_user_id: str):
     try:
+        current_user = request.state.user_id
         chat = await get_chat(current_user, other_user_id)
 
         if not chat:
@@ -148,16 +149,17 @@ async def get_chat_history(
 
 
 @app.get("/chat_history")
-async def get_user_chat_history(current_user: str = Depends(get_current_user)):
+async def get_user_chat_history(request: Request):
     try:
-        chats = await get_all_user_chats(current_user)
-        logger.info(f"Retrieved {len(chats)} chats for user {current_user}")
+        user_id = request.state.user_id
+        chats = await get_all_user_chats(user_id)
+        logger.info(f"Retrieved {len(chats)} chats for user {user_id}")
         return chats
 
     except Exception:
-        logger.exception(f"Error retrieving chat history for user {current_user}")
+        logger.exception(f"Error retrieving chat history for user {user_id}")
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            status_code=500,
             detail="Failed to retrieve chat history",
         )
 
@@ -177,36 +179,38 @@ async def get_token(user_id: str):
         )
 
 
-@app.post("/send_push_message")
-async def send_push_message_endpoint(
-    client_id: str = Form(...),
-    message: str = Form(...),
-    extra: dict = Form(None),
-):
-    try:
-        response = await send_push_message(client_id, message, extra)
-        logger.info(f"Push message sent to client {client_id}")
-        return response
+# TODO: Uncomment this when push notifications are implemented
+# @app.post("/send_push_message")
+# async def send_push_message_endpoint(
+#     client_id: str = Form(...),
+#     message: str = Form(...),
+#     extra: dict = Form(None),
+# ):
+#     try:
+#         response = await send_push_message(client_id, message, extra)
+#         logger.info(f"Push message sent to client {client_id}")
+#         return response
 
-    except HTTPException as e:
-        logger.error(f"Error sending push message to client {client_id}: {e.detail}")
-        raise e
+#     except HTTPException as e:
+#         logger.error(f"Error sending push message to client {client_id}: {e.detail}")
+#         raise e
 
-    except Exception:
-        logger.exception(f"Unexpected error sending push message to client {client_id}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to send push message",
-        )
+#     except Exception:
+#         logger.exception(f"Unexpected error sending push message to client {client_id}")
+#         raise HTTPException(
+#             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+#             detail="Failed to send push message",
+#         )
 
 
 @app.post("/upload_files")
 async def upload_files(
+    request: Request,
     files: List[UploadFile] = File(...),
-    current_user_id: str = Depends(get_current_user),
     other_user_id: str = Form(...),
 ):
     try:
+        current_user_id = request.state.user_id
         chat = await get_chat(current_user_id, other_user_id)
         if not chat or "_id" not in chat:
             raise ValueError("Chat not found")
@@ -237,6 +241,13 @@ async def upload_files(
 @app.exception_handler(HTTPException)
 async def http_exception_handler(request: Request, exc: HTTPException):
     logger.error(f"HTTP exception: {exc.status_code} - {exc.detail}")
+
+    if exc.status_code == 404:
+        return JSONResponse(
+            status_code=404,
+            content={"detail": "The requested resource was not found"},
+        )
+
     return JSONResponse(status_code=exc.status_code, content={"message": exc.detail})
 
 

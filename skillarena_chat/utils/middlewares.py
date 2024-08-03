@@ -1,0 +1,63 @@
+import os
+
+from dotenv import load_dotenv
+from fastapi import Request
+from fastapi.responses import JSONResponse
+from jose import ExpiredSignatureError, JWTError, jwt
+from starlette.middleware.base import BaseHTTPMiddleware
+from typing import List
+
+
+load_dotenv(override=True)
+
+ACCESS_TOKEN_SECRET = os.getenv("ACCESS_TOKEN_SECRET")
+ALGORITHM = "HS256"
+ACCESS_TOKEN_EXPIRE_MINUTES = 30
+
+
+class AuthMiddleware(BaseHTTPMiddleware):
+    def __init__(self, app, exempt_routes: List[str]):
+        super().__init__(app)
+        self.exempt_routes = exempt_routes
+
+    async def dispatch(self, request: Request, call_next):
+        if request.url.path in self.exempt_routes:
+            return await call_next(request)
+
+        token = request.headers.get("authorization")
+
+        if not token:
+            return await call_next(request)
+            # !Do not allow unauthenticated access, Change this to return a 401 response
+            # return JSONResponse(
+            #     status_code=401,
+            #     content={"detail": "Missing Authorization header"},
+            #     headers={"WWW-Authenticate": "Bearer"},
+            # )
+
+        try:
+            token = token.split("Bearer ")[1]
+            payload = jwt.decode(token, ACCESS_TOKEN_SECRET, algorithms=[ALGORITHM])
+            user_id = payload.get("sub")
+
+            if user_id is None:
+                raise JWTError("User ID not found in token")
+
+            request.state.user_id = user_id
+
+        except ExpiredSignatureError:
+            return JSONResponse(
+                status_code=401,
+                content={"detail": "Token has expired"},
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+
+        except JWTError:
+            return JSONResponse(
+                status_code=401,
+                content={"detail": "Could not validate credentials"},
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+
+        response = await call_next(request)
+        return response
