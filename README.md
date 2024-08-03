@@ -1,9 +1,9 @@
-# Skillsetu Chat
+# Skillarena Chat
 
 ```bash
 poetry install
-cd skillsetu_chat && poetrun run fastapi dev main.py
+cd skillarena_chat && poetrun run fastapi dev main.py
 
 # or
-uvicorn skillsetu_chat.main:app --reload
+uvicorn skillarena_chat.main:app --reload
 ```

@@ -15,6 +15,9 @@ class ConnectionManager:
         self.active_connections[user_id] = websocket
 
     def disconnect(self, user_id: str):
+        if user_id in self.active_connections:
+            del self.active_connections[user_id]
+
         del self.active_connections[user_id]
 
     async def send_personal_message(self, message: str, user_id: str):
