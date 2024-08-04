@@ -75,18 +75,19 @@ async def get_current_user(token: str = Depends(oauth2_scheme)) -> str:
         HTTPException: If the token is invalid or expired.
     """
 
-    credentials_exception = HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Could not validate credentials",
-        headers={"WWW-Authenticate": "Bearer"},
-    )
-
     try:
         payload = jwt.decode(token, ACCESS_TOKEN_SECRET, algorithms=[ALGORITHM])
-        user_id: str = payload.get("sub")
+        user_id: str | None = payload.get("sub")
+
         if user_id is None:
-            raise credentials_exception
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Could not validate credentials",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+
         return user_id
+
     except ExpiredSignatureError:
         logger.warning("Token has expired")
         raise HTTPException(
@@ -94,9 +95,14 @@ async def get_current_user(token: str = Depends(oauth2_scheme)) -> str:
             detail="Token has expired",
             headers={"WWW-Authenticate": "Bearer"},
         )
+
     except JWTError as e:
         logger.error(f"JWT error: {str(e)}")
-        raise credentials_exception from e
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Could not validate credentials",
+            headers={"WWW-Authenticate": "Bearer"},
+        ) from e
 
 
 async def get_chat(user_id1: str, user_id2: str) -> Optional[Dict]:

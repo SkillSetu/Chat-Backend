@@ -338,7 +338,7 @@
 		async function fetchAllChats() {
 			const response = await fetch("/chat_history/", {
 				headers: {
-					Authorization: `Bearer ${token}`
+					authorization: `Bearer ${token}`
 				}
 			});
 			const chats = await response.json();
