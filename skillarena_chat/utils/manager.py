@@ -27,7 +27,7 @@ class ConnectionManager:
             )
 
     async def send_receipt_update(
-        self, message_id: str, user_id: str, updated_status: str
+        self, message_id: str, user_id: str, updated_status: str, stop: bool = False
     ):
         if user_id in self.active_connections:
             await self.active_connections[user_id].send_text(
@@ -35,7 +35,12 @@ class ConnectionManager:
                     {
                         "type": "receipt_update",
                         "data": json.dumps(
-                            {"message_id": message_id, "status": updated_status}
+                            {
+                                "user_id": user_id,
+                                "message_id": message_id,
+                                "status": updated_status,
+                                "stop": stop,
+                            }
                         ),
                     }
                 )

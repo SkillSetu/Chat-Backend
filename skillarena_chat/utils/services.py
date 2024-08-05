@@ -68,7 +68,7 @@ async def handle_send_chat_message(chat_message: Message) -> None:
         await manager.send_receipt_update(
             user_id=chat_message.receiver,
             message_id=chat_message.id,
-            updated_status="delivered",
+            updated_status="read",
         )
 
     except Exception as e:

@@ -76,8 +76,20 @@ async def websocket_endpoint(websocket: WebSocket, token: str):
         logger.info(f"User {user_id} connected")
 
         while True:
-            data = await websocket.receive_json()
-            await process_websocket_message(websocket, data, user_id)
+            data: dict = await websocket.receive_json()
+            if data.get("type") == "message":
+                await process_websocket_message(websocket, data.get("data"), user_id)
+
+            elif data.get("type") == "receipt_update":
+                await manager.send_receipt_update(
+                    user_id=data.get("data").get("user_id"),
+                    message_id=data.get("data").get("message_id"),
+                    updated_status=data.get("data").get("status"),
+                    stop=data.get("data").get("stop"),
+                )
+
+            else:
+                logger.warning(f"Invalid message type: {data.get('type')}")
 
     except HTTPException as e:
         logger.warning(f"Invalid token for user {user_id}: {e.detail}")
