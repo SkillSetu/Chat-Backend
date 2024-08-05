@@ -11,7 +11,7 @@ from exponent_server_sdk import (
 from fastapi import HTTPException
 from requests.exceptions import ConnectionError, HTTPError
 
-from .database import db
+from ..db.database import db
 
 
 session = requests.Session()

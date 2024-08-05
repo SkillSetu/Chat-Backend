@@ -11,7 +11,7 @@ from fastapi import Depends, HTTPException, UploadFile, status
 from fastapi.security import OAuth2PasswordBearer
 from jose import ExpiredSignatureError, JWTError, jwt
 
-from .database import db
+from ..db.database import db
 from .manager import manager
 from .models import ChatMessage, FileData, Message
 
