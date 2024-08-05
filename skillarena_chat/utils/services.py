@@ -1,51 +1,21 @@
 import gzip
 import io
 import logging
-import os
 from datetime import datetime
-from typing import Dict, Optional
 
 from PIL import Image
-from dotenv import load_dotenv
 from fastapi import UploadFile
 from fastapi.security import OAuth2PasswordBearer
 
 from ..db.database import db
-from ..models import ChatMessage, FileData, Message
+from ..models import ChatMessage, Message
+from ..services.chat import get_chat
+from ..services.exceptions import DatabaseOperationError
 from .manager import manager
 
 
-load_dotenv(override=True)
-
-
-# Constants
-ACCESS_TOKEN_SECRET = os.getenv("ACCESS_TOKEN_SECRET")
-ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 30
-
-# Setup
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 logger = logging.getLogger(__name__)
-
-
-class DatabaseOperationError(Exception):
-    """Custom exception for database operation errors."""
-
-
-async def get_chat(user_id1: str, user_id2: str) -> Optional[Dict]:
-    """
-    Retrieve a chat between two users.
-
-    Args:
-        user_id1: The ID of the first user.
-        user_id2: The ID of the second user.
-
-    Returns:
-        Optional[Dict]: The chat document if found, None otherwise.
-    """
-
-    users = sorted([user_id1, user_id2])
-    return await db.get_collection("messages").find_one({"users": users})
 
 
 async def handle_send_chat_message(chat_message: Message) -> None:
@@ -106,29 +76,6 @@ async def handle_send_chat_message(chat_message: Message) -> None:
         raise DatabaseOperationError("Failed to handle chat message") from e
 
 
-def create_chat_message(data: Dict) -> Message:
-    """
-    Create a Message object from dictionary data.
-
-    Args:
-        data: A dictionary containing message data.
-
-    Returns:
-        Message: The created Message object.
-
-    Raises:
-        ValueError: If the message data is invalid.
-    """
-
-    try:
-        if "file" in data and data["file"]:
-            data["file"] = FileData(**data["file"])
-        return Message(**data)
-    except Exception as e:
-        logger.error(f"Error creating chat message: {str(e)}")
-        raise ValueError("Invalid chat message data") from e
-
-
 def compress_file(file: UploadFile) -> io.BytesIO:
     """
     Compress the given file.
@@ -151,110 +98,3 @@ def compress_file(file: UploadFile) -> io.BytesIO:
 
     compressed_file.seek(0)
     return compressed_file
-
-
-async def get_all_user_chats(user_id: str) -> list[Message]:
-    """Get all chats for a user.
-
-    Args:
-        user_id (str): The user ID.
-
-    Returns:
-        list[Message]: A list of chat messages.
-    """
-
-    chats = (
-        await db.get_collection("messages")
-        .find({"users": user_id})
-        .to_list(length=1000)
-    )
-
-    # convert all ObjectIds to strings for JSON serialization
-    for chat in chats:
-        chat["_id"] = str(chat["_id"])
-
-    return chats
-
-
-async def mark_messages_as_read(chat: ChatMessage, current_user_id: str):
-    """Mark messages as read when a user reads a chat.
-
-    Args:
-        chat (ChatMessage): The chat to mark messages in.
-        current_user_id (str): The ID of the current user.
-
-    Raises:
-        DatabaseOperationError: If database operations fail.
-    """
-
-    messages = db.get_collection("messages")
-    all_messages = chat["messages"]
-    delivered_messages = [
-        message for message in all_messages if message["status"] == "delivered"
-    ]
-    to_update_delivered_messages = [
-        message
-        for message in delivered_messages
-        if message["receiver"] == current_user_id
-    ]
-
-    try:
-        for message in to_update_delivered_messages:
-            await messages.update_one(
-                {"_id": chat["_id"], "messages.id": message["id"]},
-                {"$set": {"messages.$.status": "read"}},
-            )
-
-    except Exception as e:
-        logger.error(f"Error marking messages as read: {str(e)}")
-        raise DatabaseOperationError("Failed to mark messages as read") from e
-
-
-async def create_empty_chat(user_id: str, other_user_id: str) -> ChatMessage:
-    """Create an empty chat for a user.
-
-    Args:
-        user_id (str): The user ID.
-
-    Returns:
-        ChatMessage: The created chat message.
-    """
-
-    chat = ChatMessage(
-        messages=[],
-        users=sorted([user_id, other_user_id]),
-        created_at=datetime.utcnow(),
-        last_updated=datetime.utcnow(),
-    )
-    await db.get_collection("messages").insert_one(chat.dict())
-    return chat
-
-
-async def block_user(user_id: str, blocked_user_id: str):
-    """Block a user.
-
-    Args:
-        user_id (str): The user ID.
-        blocked_user_id (str): The blocked user ID.
-
-    Raises:
-        DatabaseOperationError: If database operations fail.
-    """
-
-    try:
-        chat = await get_chat(user_id, blocked_user_id)
-        if not chat:
-            raise ValueError("Chat not found")
-
-        await db.get_collection("messages").update_one(
-            {"_id": chat["_id"]},
-            {"$set": {"is_blocked": True, "blocked_by": user_id}},
-        )
-
-        logger.info(f"Blocked user {blocked_user_id} for user {user_id}")
-
-    except Exception as e:
-        logger.error(
-            f"Error blocking user {blocked_user_id} for user {user_id}: {str(e)}"
-        )
-        raise DatabaseOperationError("Failed to block user") from e

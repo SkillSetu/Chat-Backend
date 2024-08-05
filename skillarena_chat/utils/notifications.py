@@ -1,5 +1,3 @@
-import os
-
 import requests
 from exponent_server_sdk import (
     DeviceNotRegisteredError,
@@ -11,13 +9,14 @@ from exponent_server_sdk import (
 from fastapi import HTTPException
 from requests.exceptions import ConnectionError, HTTPError
 
+from ..config import config
 from ..db.database import db
 
 
 session = requests.Session()
 session.headers.update(
     {
-        "Authorization": f"Bearer {os.getenv('EXPO_TOKEN')}",
+        "Authorization": f"Bearer {config.EXPO_TOKEN}",
         "accept": "application/json",
         "accept-encoding": "gzip, deflate",
         "content-type": "application/json",

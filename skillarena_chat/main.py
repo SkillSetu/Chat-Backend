@@ -19,17 +19,17 @@ from fastapi.templating import Jinja2Templates
 
 from .models import Message
 from .services.auth import create_access_token, get_current_user
-from .utils.manager import manager
-from .utils.middlewares import AuthMiddleware
-from .utils.s3 import process_and_upload_file
-from .utils.services import (
+from .services.chat import (
     block_user,
     create_empty_chat,
     get_all_user_chats,
     get_chat,
-    handle_send_chat_message,
     mark_messages_as_read,
 )
+from .utils.manager import manager
+from .utils.middlewares import AuthMiddleware
+from .utils.s3 import process_and_upload_file
+from .utils.services import handle_send_chat_message
 
 
 logging.basicConfig(
