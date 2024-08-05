@@ -208,6 +208,7 @@
 				const messageData = JSON.parse(event.data);
 				const type = messageData.type;
 				const data = JSON.parse(messageData.data);
+				const receiverId = document.getElementById("receiverId").value;
 
 				if (type === "message") {
 					displayMessage(data);
@@ -216,10 +217,26 @@
 				if (type === "receipt_update") {
 					const message_id = data.message_id;
 					const status = data.status;
+					const stop = data.stop || false;
+					const receiverId = document.getElementById("receiverId").value;
 
 					const message = document.getElementById(message_id);
 					if (message) {
 						message.innerHTML = `${getStatusIcon(status)} ${message.innerHTML.slice(2)}`;
+					}
+
+					if (stop === false && status === "read") {
+						ws.send(
+							JSON.stringify({
+								type: "receipt_update",
+								data: {
+									user_id: receiverId,
+									message_id: message_id,
+									status: status,
+									stop: true
+								}
+							})
+						);
 					}
 				}
 			};
@@ -292,9 +309,12 @@
 				const filesToSendInfo = await uploadFiles(filesToSend);
 				ws.send(
 					JSON.stringify({
-						receiver: receiverId,
-						message: message,
-						attachments: filesToSendInfo.map((file) => file.url)
+						type: "message",
+						data: {
+							receiver: receiverId,
+							message: message,
+							attachments: filesToSendInfo.map((file) => file.url)
+						}
 					})
 				);
 
@@ -303,8 +323,11 @@
 			} else {
 				ws.send(
 					JSON.stringify({
-						receiver: receiverId,
-						message: message
+						type: "message",
+						data: {
+							receiver: receiverId,
+							message: message
+						}
 					})
 				);
 			}
@@ -324,12 +347,12 @@
 			messages.innerHTML = "";
 			history.forEach((msg) => {
 				displayMessage({
-					id: msg._id,
+					id: msg.id,
 					sender: msg.sender,
 					receiver: msg.receiver,
 					status: msg.status,
 					message: msg.message,
-					timestamp: msg.timestamp,
+					created_at: msg.created_at,
 					attachments: msg.attachments
 				});
 			});
