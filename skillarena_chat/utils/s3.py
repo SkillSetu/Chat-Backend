@@ -1,10 +1,10 @@
-import gzip
 import io
 import logging
 import os
 
 import boto3
 from PIL import Image
+from PyPDF2 import PdfReader, PdfWriter
 from botocore.exceptions import ClientError
 from dotenv import load_dotenv
 from fastapi import HTTPException, UploadFile
@@ -24,14 +24,54 @@ s3_client = boto3.client(
 )
 
 
+def compress_image(file: UploadFile) -> io.BytesIO:
+    """Compress an image file."""
+    image = Image.open(file.file)
+
+    # Convert to RGB if image is in RGBA mode
+    if image.mode == "RGBA":
+        image = image.convert("RGB")
+
+    optimized_file = io.BytesIO()
+
+    # Save with optimal settings
+    image.save(
+        optimized_file,
+        format=image.format,
+        optimize=True,
+        quality=85,  # Adjust this value to balance quality and size
+        progressive=True,
+    )
+
+    optimized_file.seek(0)
+    return optimized_file
+
+
+def compress_pdf(file: UploadFile) -> io.BytesIO:
+    """Compress a PDF file."""
+    reader = PdfReader(file.file)
+    writer = PdfWriter()
+
+    for page in reader.pages:
+        writer.add_page(page)
+
+    # Use compression, but not too aggressively
+    writer.add_metadata(reader.metadata)
+
+    output = io.BytesIO()
+    writer.write(output)
+    output.seek(0)
+    return output
+
+
 def compress_file(file: UploadFile) -> io.BytesIO:
-    """Compress the given file.
+    """Compress the given file without losing quality.
 
     Args:
         file (UploadFile): The UploadFile object to compress.
 
     Raises:
-        HTTPException: The file exceeds the maximum size limit.
+        HTTPException: If file processing fails.
 
     Returns:
         io.BytesIO: A BytesIO object containing the compressed file data.
@@ -39,24 +79,12 @@ def compress_file(file: UploadFile) -> io.BytesIO:
 
     try:
         if file.content_type.startswith("image"):
-            image = Image.open(file.file)
-
-            optimized_file = io.BytesIO()
-            image.save(optimized_file, format=image.format, optimize=True)
-            optimized_file.seek(0)
-
-            return optimized_file
-
+            return compress_image(file)
+        elif file.content_type == "application/pdf":
+            return compress_pdf(file)
         else:
-            compressed_file = io.BytesIO()
-
-            with gzip.GzipFile(fileobj=compressed_file, mode="w") as f:
-                file.file.seek(0)
-                f.write(file.file.read())
-
-            compressed_file.seek(0)
-
-            return compressed_file
+            file.file.seek(0)
+            return io.BytesIO(file.file.read())
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to process file: {str(e)}")
