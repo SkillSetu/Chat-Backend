@@ -301,3 +301,33 @@ async def create_empty_chat(user_id: str, other_user_id: str) -> ChatMessage:
     )
     await db.get_collection("messages").insert_one(chat.dict())
     return chat
+
+
+async def block_user(user_id: str, blocked_user_id: str):
+    """Block a user.
+
+    Args:
+        user_id (str): The user ID.
+        blocked_user_id (str): The blocked user ID.
+
+    Raises:
+        DatabaseOperationError: If database operations fail.
+    """
+
+    try:
+        chat = await get_chat(user_id, blocked_user_id)
+        if not chat:
+            raise ValueError("Chat not found")
+
+        await db.get_collection("messages").update_one(
+            {"_id": chat["_id"]},
+            {"$set": {"is_blocked": True, "blocked_by": user_id}},
+        )
+
+        logger.info(f"Blocked user {blocked_user_id} for user {user_id}")
+
+    except Exception as e:
+        logger.error(
+            f"Error blocking user {blocked_user_id} for user {user_id}: {str(e)}"
+        )
+        raise DatabaseOperationError("Failed to block user") from e
