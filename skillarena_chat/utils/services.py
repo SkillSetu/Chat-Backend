@@ -2,18 +2,17 @@ import gzip
 import io
 import logging
 import os
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Dict, Optional
 
 from PIL import Image
 from dotenv import load_dotenv
-from fastapi import Depends, HTTPException, UploadFile, status
+from fastapi import UploadFile
 from fastapi.security import OAuth2PasswordBearer
-from jose import ExpiredSignatureError, JWTError, jwt
 
 from ..db.database import db
+from ..models import ChatMessage, FileData, Message
 from .manager import manager
-from .models import ChatMessage, FileData, Message
 
 
 load_dotenv(override=True)
@@ -29,80 +28,8 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 logger = logging.getLogger(__name__)
 
 
-class TokenCreationError(Exception):
-    """Custom exception for token creation errors."""
-
-
 class DatabaseOperationError(Exception):
     """Custom exception for database operation errors."""
-
-
-def create_access_token(data: Dict[str, str]) -> str:
-    """
-    Create a new access token.
-
-    Args:
-        data: A dictionary containing the data to encode in the token.
-
-    Returns:
-        str: The encoded JWT token.
-
-    Raises:
-        TokenCreationError: If token creation fails.
-    """
-
-    try:
-        to_encode = data.copy()
-        expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
-        to_encode.update({"exp": expire})
-        return jwt.encode(to_encode, ACCESS_TOKEN_SECRET, algorithm=ALGORITHM)
-    except Exception as e:
-        logger.error(f"Error creating access token: {str(e)}")
-        raise TokenCreationError("Failed to create access token") from e
-
-
-async def get_current_user(token: str = Depends(oauth2_scheme)) -> str:
-    """
-    Validate the access token and return the current user.
-
-    Args:
-        token: The JWT token to validate.
-
-    Returns:
-        str: The user ID extracted from the token.
-
-    Raises:
-        HTTPException: If the token is invalid or expired.
-    """
-
-    try:
-        payload = jwt.decode(token, ACCESS_TOKEN_SECRET, algorithms=[ALGORITHM])
-        user_id: str | None = payload.get("sub")
-
-        if user_id is None:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Could not validate credentials",
-                headers={"WWW-Authenticate": "Bearer"},
-            )
-
-        return user_id
-
-    except ExpiredSignatureError:
-        logger.warning("Token has expired")
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Token has expired",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-
-    except JWTError as e:
-        logger.error(f"JWT error: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Could not validate credentials",
-            headers={"WWW-Authenticate": "Bearer"},
-        ) from e
 
 
 async def get_chat(user_id1: str, user_id2: str) -> Optional[Dict]:
