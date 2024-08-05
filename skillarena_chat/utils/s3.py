@@ -1,26 +1,22 @@
 import io
 import logging
-import os
 
 import boto3
 from PIL import Image
 from PyPDF2 import PdfReader, PdfWriter
 from botocore.exceptions import ClientError
-from dotenv import load_dotenv
 from fastapi import HTTPException, UploadFile
 
+from ..config import config
 
-load_dotenv(override=True)
-
-MAX_FILE_SIZE = 10 * 1024 * 1024  # 10 MB
 
 logger = logging.getLogger(__name__)
 
 s3_client = boto3.client(
     "s3",
-    aws_access_key_id=os.getenv("AWS_ACCESS_KEY_ID"),
-    aws_secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY"),
-    region_name=os.getenv("AWS_REGION"),
+    aws_access_key_id=config.AWS_ACCESS_KEY_ID,
+    aws_secret_access_key=config.AWS_SECRET_ACCESS_KEY,
+    region_name=config.AWS_REGION,
 )
 
 
@@ -111,10 +107,10 @@ def process_and_upload_file(file: UploadFile, chatid: str) -> dict:
         file_size = file.file.tell()
         file.file.seek(0)
 
-        if file_size > MAX_FILE_SIZE:
+        if file_size > config.MAX_FILE_SIZE:
             raise HTTPException(
                 status_code=400,
-                detail=f"File {file.filename} exceeds the maximum size limit of {MAX_FILE_SIZE / (1024 * 1024)} MB",
+                detail=f"File {file.filename} exceeds the maximum size limit of {config.MAX_FILE_SIZE / (1024 * 1024)} MB",
             )
 
         processed_file = compress_file(file)
@@ -124,12 +120,12 @@ def process_and_upload_file(file: UploadFile, chatid: str) -> dict:
 
         s3_client.upload_fileobj(
             processed_file,
-            os.getenv("S3_BUCKET_NAME"),
+            config.S3_BUCKET_NAME,
             file_name,
             ExtraArgs={"ContentType": content_type},
         )
 
-        url = f"https://{os.getenv('S3_BUCKET_NAME')}.s3.amazonaws.com/{file_name}"
+        url = f"https://{config.S3_BUCKET_NAME}.s3.amazonaws.com/{file_name}"
 
         return {
             "original_file_name": file.filename,

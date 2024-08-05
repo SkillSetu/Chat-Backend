@@ -17,19 +17,19 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 
-from .utils.manager import manager
-from .utils.middlewares import AuthMiddleware
-from .utils.models import Message
-from .utils.s3 import process_and_upload_file
-from .utils.services import (
-    create_access_token,
+from .models import Message
+from .services.auth import create_access_token, get_current_user
+from .services.chat import (
+    block_user,
     create_empty_chat,
     get_all_user_chats,
     get_chat,
-    get_current_user,
-    handle_send_chat_message,
     mark_messages_as_read,
 )
+from .utils.manager import manager
+from .utils.middlewares import AuthMiddleware
+from .utils.s3 import process_and_upload_file
+from .utils.services import handle_send_chat_message
 
 
 logging.basicConfig(
@@ -235,6 +235,24 @@ async def upload_files(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="An unexpected error occurred during file upload",
+        )
+
+
+@app.post("/block_user/{user_id}")
+async def block_user_endpoint(request: Request, user_id: str):
+    try:
+        current_user_id = request.state.user_id
+
+        await block_user(current_user_id, user_id)
+
+        logger.info(f"Blocked user {user_id} for user {current_user_id}")
+        return {"message": f"User {user_id} blocked successfully"}
+
+    except Exception:
+        logger.exception(f"Error blocking user {user_id} for user {current_user_id}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to block user",
         )
 
 

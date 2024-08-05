@@ -2,8 +2,8 @@
 
 ```bash
 poetry install
-cd skillarena_chat && poetrun run fastapi dev main.py
+poetry run uvicorn skillarena_chat.main:app --reload
 
-# or
-uvicorn skillarena_chat.main:app --reload
+# or run the script
+poetry run python -m skillarena_chat.main
 ```

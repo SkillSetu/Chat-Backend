@@ -1,18 +1,11 @@
-import os
 from typing import List
 
-from dotenv import load_dotenv
 from fastapi import Request
 from fastapi.responses import JSONResponse
 from jose import ExpiredSignatureError, JWTError, jwt
 from starlette.middleware.base import BaseHTTPMiddleware
 
-
-load_dotenv(override=True)
-
-ACCESS_TOKEN_SECRET = os.getenv("ACCESS_TOKEN_SECRET")
-ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 30
+from ..config import config
 
 
 class AuthMiddleware(BaseHTTPMiddleware):
@@ -37,7 +30,9 @@ class AuthMiddleware(BaseHTTPMiddleware):
 
         try:
             token = token.split("Bearer ")[1]
-            payload = jwt.decode(token, ACCESS_TOKEN_SECRET, algorithms=[ALGORITHM])
+            payload = jwt.decode(
+                token, config.ACCESS_TOKEN_SECRET, algorithms=[config.ALGORITHM]
+            )
             user_id = payload.get("sub")
 
             if user_id is None:
