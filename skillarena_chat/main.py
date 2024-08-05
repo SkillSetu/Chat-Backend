@@ -216,7 +216,7 @@ async def upload_files(
             raise ValueError("Chat not found")
 
         chatid = chat["_id"]
-        uploaded_files = [await process_and_upload_file(file, chatid) for file in files]
+        uploaded_files = [process_and_upload_file(file, chatid) for file in files]
         logger.info(f"Uploaded {len(uploaded_files)} file(s) for chat {chatid}")
 
         return {
