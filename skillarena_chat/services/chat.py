@@ -4,6 +4,7 @@ from typing import Dict, List, Optional
 from ..db.database import db
 from ..models import ChatMessage, Message
 from .exceptions import DatabaseOperationError
+from bson import ObjectId
 
 
 async def get_chat(user_id1: str, user_id2: str) -> Optional[Dict]:
@@ -73,3 +74,17 @@ async def block_user(user_id: str, blocked_user_id: str):
 
     except Exception as e:
         raise DatabaseOperationError("Failed to block user") from e
+
+
+async def mark_message_as_read(chat_id: str, message_id: str):
+    messages = db.get_collection("messages")
+
+    try:
+        print("we are here")
+        await messages.update_one(
+            {"_id": ObjectId(chat_id), "messages.id": message_id},
+            {"$set": {"messages.$.status": "read"}},
+        )
+
+    except Exception as e:
+        raise DatabaseOperationError("Failed to mark message as read") from e

@@ -61,11 +61,13 @@ async def handle_send_chat_message(chat_message: Message) -> None:
         )
 
         await manager.send_receipt_update(
+            chat_id=str(chat_doc["_id"]),
             user_id=chat_message.sender,
             message_id=chat_message.id,
             updated_status="delivered",
         )
         await manager.send_receipt_update(
+            chat_id=str(chat_doc["_id"]),
             user_id=chat_message.receiver,
             message_id=chat_message.id,
             updated_status="read",
