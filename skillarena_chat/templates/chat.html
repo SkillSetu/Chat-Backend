@@ -218,7 +218,8 @@
 					const message_id = data.message_id;
 					const status = data.status;
 					const stop = data.stop || false;
-					const receiverId = document.getElementById("receiverId").value;
+					const receiver_id = document.getElementById("receiverId").value;
+					const chat_id = data.chat_id;
 
 					const message = document.getElementById(message_id);
 					if (message) {
@@ -230,7 +231,8 @@
 							JSON.stringify({
 								type: "receipt_update",
 								data: {
-									user_id: receiverId,
+									chat_id: chat_id,
+									user_id: receiver_id,
 									message_id: message_id,
 									status: status,
 									stop: true

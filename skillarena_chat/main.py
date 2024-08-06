@@ -25,6 +25,7 @@ from .services.chat import (
     get_all_user_chats,
     get_chat,
     mark_messages_as_read,
+    mark_message_as_read,
 )
 from .utils.manager import manager
 from .utils.middlewares import AuthMiddleware
@@ -81,7 +82,16 @@ async def websocket_endpoint(websocket: WebSocket, token: str):
                 await process_websocket_message(websocket, data.get("data"), user_id)
 
             elif data.get("type") == "receipt_update":
+
+                # update the receipt for the message in the database
+                print(data.get("data"))
+                await mark_message_as_read(
+                    chat_id=data.get("data").get("chat_id"),
+                    message_id=data.get("data").get("message_id"),
+                )
+
                 await manager.send_receipt_update(
+                    chat_id=data.get("data").get("chat_id"),
                     user_id=data.get("data").get("user_id"),
                     message_id=data.get("data").get("message_id"),
                     updated_status=data.get("data").get("status"),
