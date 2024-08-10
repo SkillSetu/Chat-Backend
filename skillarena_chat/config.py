@@ -1,5 +1,7 @@
 import os
+
 from dotenv import load_dotenv
+
 
 load_dotenv(override=True)
 
@@ -29,6 +31,7 @@ class Config:
         self.S3_BUCKET_NAME = os.getenv("S3_BUCKET_NAME")
         self.EXPO_TOKEN = os.getenv("EXPO_TOKEN")
         self.ACCESS_TOKEN_SECRET = os.getenv("ACCESS_TOKEN_SECRET")
+        self.ENCRYPTION_KEY = os.getenv("ENCRYPTION_KEY")
         self.ALGORITHM = "HS256"
         self.ACCESS_TOKEN_EXPIRE_MINUTES = 30
         self.MAX_FILE_SIZE = 10 * 1024 * 1024  # 10 MB

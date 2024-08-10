@@ -1,4 +1,7 @@
 import requests
+from fastapi import HTTPException
+from requests.exceptions import ConnectionError, HTTPError
+
 from exponent_server_sdk import (
     DeviceNotRegisteredError,
     PushClient,
@@ -6,8 +9,6 @@ from exponent_server_sdk import (
     PushServerError,
     PushTicketError,
 )
-from fastapi import HTTPException
-from requests.exceptions import ConnectionError, HTTPError
 
 from ..config import config
 from ..db.database import db
