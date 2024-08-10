@@ -1,10 +1,11 @@
 from datetime import datetime
 from typing import Dict, List, Optional
 
+from bson import ObjectId
+
 from ..db.database import db
 from ..models import ChatMessage, Message
 from .exceptions import DatabaseOperationError
-from bson import ObjectId
 
 
 async def get_chat(user_id1: str, user_id2: str) -> Optional[Dict]:

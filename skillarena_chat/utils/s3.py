@@ -1,13 +1,13 @@
-import io
+import base64
 import logging
 
 import boto3
-from PIL import Image
-from PyPDF2 import PdfReader, PdfWriter
+from Crypto.Cipher import AES
+from Crypto.Util.Padding import pad, unpad
 from botocore.exceptions import ClientError
 from fastapi import HTTPException, UploadFile
 
-from ..config import config
+from skillarena_chat.config import config
 
 
 logger = logging.getLogger(__name__)
@@ -19,71 +19,21 @@ s3_client = boto3.client(
     region_name=config.AWS_REGION,
 )
 
-
-def compress_image(file: UploadFile) -> io.BytesIO:
-    """Compress an image file."""
-    image = Image.open(file.file)
-
-    # Convert to RGB if image is in RGBA mode
-    if image.mode == "RGBA":
-        image = image.convert("RGB")
-
-    optimized_file = io.BytesIO()
-
-    # Save with optimal settings
-    image.save(
-        optimized_file,
-        format=image.format,
-        optimize=True,
-        quality=85,  # Adjust this value to balance quality and size
-        progressive=True,
-    )
-
-    optimized_file.seek(0)
-    return optimized_file
+encryption_key = config.ENCRYPTION_KEY.encode("utf-8")
 
 
-def compress_pdf(file: UploadFile) -> io.BytesIO:
-    """Compress a PDF file."""
-    reader = PdfReader(file.file)
-    writer = PdfWriter()
-
-    for page in reader.pages:
-        writer.add_page(page)
-
-    # Use compression, but not too aggressively
-    writer.add_metadata(reader.metadata)
-
-    output = io.BytesIO()
-    writer.write(output)
-    output.seek(0)
-    return output
+def encrypt_filename(filename):
+    cipher = AES.new(encryption_key, AES.MODE_ECB)
+    padded_filename = pad(filename.encode("utf-8"), AES.block_size)
+    encrypted = cipher.encrypt(padded_filename)
+    return base64.b64encode(encrypted).decode("utf-8")
 
 
-def compress_file(file: UploadFile) -> io.BytesIO:
-    """Compress the given file without losing quality.
-
-    Args:
-        file (UploadFile): The UploadFile object to compress.
-
-    Raises:
-        HTTPException: If file processing fails.
-
-    Returns:
-        io.BytesIO: A BytesIO object containing the compressed file data.
-    """
-
-    try:
-        if file.content_type.startswith("image"):
-            return compress_image(file)
-        elif file.content_type == "application/pdf":
-            return compress_pdf(file)
-        else:
-            file.file.seek(0)
-            return io.BytesIO(file.file.read())
-
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to process file: {str(e)}")
+def decrypt_filename(encrypted_filename):
+    cipher = AES.new(encryption_key, AES.MODE_ECB)
+    encrypted = base64.b64decode(encrypted_filename.encode("utf-8"))
+    decrypted = cipher.decrypt(encrypted)
+    return unpad(decrypted, AES.block_size).decode("utf-8")
 
 
 def process_and_upload_file(file: UploadFile, chatid: str) -> dict:
@@ -113,13 +63,11 @@ def process_and_upload_file(file: UploadFile, chatid: str) -> dict:
                 detail=f"File {file.filename} exceeds the maximum size limit of {config.MAX_FILE_SIZE / (1024 * 1024)} MB",
             )
 
-        processed_file = compress_file(file)
-
         file_name = f"{chatid}/{file.filename}"
         content_type = file.content_type
 
         s3_client.upload_fileobj(
-            processed_file,
+            file.file,
             config.S3_BUCKET_NAME,
             file_name,
             ExtraArgs={"ContentType": content_type},
