@@ -262,7 +262,7 @@
 			}
 		}
 
-		function displayMessage(messageData) {
+		async function displayMessage(messageData) {
 			const messages = document.getElementById("messages");
 			const message = document.createElement("div");
 
@@ -276,29 +276,35 @@
 				const attachments = document.createElement("div");
 				message.appendChild(attachments);
 
-				messageData.attachments.forEach((attachment) => {
-					let extension = attachment.split(".")[attachment.split(".").length - 1];
+				const attachmentUrls = await getAttachmentUrls(messageData.attachments);
 
-					if (extension === "jpg" || extension === "jpeg" || extension === "png" || extension === "gif") {
-						const img = document.createElement("img");
-						img.src = attachment;
-						img.style.maxWidth = "100%";
-						img.style.maxHeight = "100%";
-						img.alt = attachment.split("/").pop();
-						attachments.appendChild(img);
-					} else {
-						const link = document.createElement("a");
-						link.href = attachment;
-						link.textContent = attachment.split("/").pop();
-						link.target = "_blank";
-						attachments.appendChild(link);
-					}
+				attachmentUrls.forEach((attachment) => {
+					let extension = attachment.split(".")[attachment.split(".").length - 1];
+					const link = document.createElement("a");
+					link.href = attachment;
+					link.textContent = attachment.split("/").pop();
+					link.target = "_blank";
+					attachments.appendChild(link);
 				});
 			}
 
 			message.className = messageData.sender === currentUserId ? "" : "received";
 			messages.appendChild(message);
 			messages.scrollTop = messages.scrollHeight;
+		}
+
+		async function getAttachmentUrls(attachmentNames) {
+			const response = await fetch("/get_attachment_urls", {
+				method: "POST",
+				headers: {
+					"Content-Type": "application/json"
+				},
+				body: JSON.stringify({
+					file_names: attachmentNames
+				})
+			});
+			const attachmentUrls = await response.json();
+			return attachmentUrls;
 		}
 
 		async function sendMessage() {

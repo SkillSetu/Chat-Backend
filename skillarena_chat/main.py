@@ -29,7 +29,7 @@ from .services.chat import (
 )
 from .utils.manager import manager
 from .utils.middlewares import AuthMiddleware
-from .utils.s3 import process_and_upload_file
+from .utils.s3 import generate_presigned_urls, process_and_upload_file
 from .utils.services import handle_send_chat_message
 
 
@@ -275,6 +275,20 @@ async def block_user_endpoint(request: Request, user_id: str):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to block user",
         )
+
+
+@app.post("/get_attachment_urls")
+async def get_presigned_urls(request: Request):
+    try:
+        data = await request.json()
+        file_names = data.get("file_names")
+        if not file_names:
+            raise ValueError("No file names provided")
+        return generate_presigned_urls(file_names)
+
+    except ValueError as ve:
+        logger.error(f"Validation error during file upload: {str(ve)}")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(ve))
 
 
 @app.exception_handler(HTTPException)
