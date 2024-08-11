@@ -46,6 +46,16 @@ Most routes require authentication using a bearer token via the `authorization` 
   - `other_user_id`: String (form data)
 - **Response:** JSON object with upload status and file details
 
+### 5. Get Presigned URLs
+
+- **URL:** `/get_presigned_urls`
+- **Method:** POST
+- **Description:** Gets presigned URLs for files in a specific chat message.
+- **Authentication:** Required
+- **Parameters:**
+  - `files`: List of file names (JSON)
+- **Response:** JSON object with presigned URLs
+
 ## WebSocket Message Format
 
 There can be two types of messages: `message` and `receipt_update`.
@@ -72,8 +82,11 @@ For `receipt_update`:
 {
   "type": "receipt_update",
   "data": {
+    "chat_id": "chat_id",
+    "user_id": "receiver_id",
     "message_id": "message_id",
-    "status": "delivered | read"
+    "status": "delivered | read",
+    "stop": "true | false" // Sent via the front-end to stop the receipt update loop
   }
 }
 ```
