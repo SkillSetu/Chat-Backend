@@ -1,3 +1,4 @@
+from typing import List
 import base64
 import logging
 
@@ -6,6 +7,7 @@ from Crypto.Cipher import AES
 from Crypto.Util.Padding import pad, unpad
 from botocore.exceptions import ClientError
 from fastapi import HTTPException, UploadFile
+from Crypto.Hash import SHA256
 
 from skillarena_chat.config import config
 
@@ -19,21 +21,39 @@ s3_client = boto3.client(
     region_name=config.AWS_REGION,
 )
 
-encryption_key = config.ENCRYPTION_KEY.encode("utf-8")
+
+def get_encryption_key():
+    return SHA256.new(config.ENCRYPTION_KEY.encode("utf-8")).digest()
 
 
 def encrypt_filename(filename):
-    cipher = AES.new(encryption_key, AES.MODE_ECB)
+    cipher = AES.new(get_encryption_key(), AES.MODE_ECB)
     padded_filename = pad(filename.encode("utf-8"), AES.block_size)
     encrypted = cipher.encrypt(padded_filename)
     return base64.b64encode(encrypted).decode("utf-8")
 
 
 def decrypt_filename(encrypted_filename):
-    cipher = AES.new(encryption_key, AES.MODE_ECB)
+    cipher = AES.new(get_encryption_key(), AES.MODE_ECB)
     encrypted = base64.b64decode(encrypted_filename.encode("utf-8"))
     decrypted = cipher.decrypt(encrypted)
     return unpad(decrypted, AES.block_size).decode("utf-8")
+
+
+def generate_presigned_urls(file_names: List[str]) -> List[str]:
+    data = []
+    for file_name in file_names:
+        decrypted_filename = decrypt_filename(file_name)
+        presigned_url = s3_client.generate_presigned_url(
+            ClientMethod="get_object",
+            Params={
+                "Bucket": config.S3_BUCKET_NAME,
+                "Key": decrypted_filename,
+            },
+        )
+        data.append(presigned_url)
+
+    return data
 
 
 def process_and_upload_file(file: UploadFile, chatid: str) -> dict:
@@ -65,6 +85,7 @@ def process_and_upload_file(file: UploadFile, chatid: str) -> dict:
 
         file_name = f"{chatid}/{file.filename}"
         content_type = file.content_type
+        encrypted_url = encrypt_filename(file_name)
 
         s3_client.upload_fileobj(
             file.file,
@@ -73,12 +94,10 @@ def process_and_upload_file(file: UploadFile, chatid: str) -> dict:
             ExtraArgs={"ContentType": content_type},
         )
 
-        url = f"https://{config.S3_BUCKET_NAME}.s3.amazonaws.com/{file_name}"
-
         return {
             "original_file_name": file.filename,
             "stored_file_name": file_name,
-            "url": url,
+            "url": encrypted_url,
         }
 
     except ClientError as e:
