@@ -181,6 +181,7 @@
 		let currentUserId;
 		let token;
 		let filesToSend = [];
+		let chatId;
 
 		async function login() {
 			currentUserId = document.getElementById("userId").value;
@@ -350,10 +351,16 @@
 				}
 			});
 			const history = await response.json();
+			if (!history.success) {
+				alert(history.message);
+				return;
+			}
+
+			chatId = history.data.chat_id;
 
 			const messages = document.getElementById("messages");
 			messages.innerHTML = "";
-			history.forEach((msg) => {
+			history.data.messages.forEach((msg) => {
 				displayMessage({
 					id: msg.id,
 					sender: msg.sender,
@@ -372,7 +379,12 @@
 					authorization: `Bearer ${token}`
 				}
 			});
-			const chats = await response.json();
+			const res = await response.json();
+			if (!res.success) {
+				alert(res.message);
+				return;
+			}
+			const chats = res.data.chats;
 
 			for (let chat of chats) {
 				const chatDiv = document.createElement("div");
@@ -419,10 +431,10 @@
 		}
 
 		async function uploadFiles(files) {
-			const receiverId = document.getElementById("receiverId").value;
 			const formData = new FormData();
 
-			formData.append("other_user_id", receiverId);
+			formData.append("chat_id", chatId);
+
 			for (let file of files) {
 				formData.append("files", file);
 			}

@@ -82,8 +82,6 @@ async def websocket_endpoint(websocket: WebSocket, token: str):
                 await process_websocket_message(websocket, data.get("data"), user_id)
 
             elif data.get("type") == "receipt_update":
-                # update the receipt for the message in the database
-                print(data.get("data"))
                 await mark_message_as_read(
                     chat_id=data.get("data").get("chat_id"),
                     message_id=data.get("data").get("message_id"),
@@ -108,6 +106,7 @@ async def websocket_endpoint(websocket: WebSocket, token: str):
         if user_id:
             manager.disconnect(user_id)
             logger.info(f"User {user_id} disconnected")
+
     except Exception:
         logger.exception(f"Unexpected error in WebSocket connection for user {user_id}")
         await websocket.close(code=status.WS_1011_INTERNAL_ERROR)
@@ -157,7 +156,21 @@ async def get_chat_history(request: Request, other_user_id: str):
             )
 
         updated_chat = await get_chat(current_user, other_user_id)
-        return updated_chat["messages"] if updated_chat else []
+
+        if not updated_chat:
+            return {
+                "success": False,
+                "message": "Chat not found",
+            }
+
+        return {
+            "success": True,
+            "message": "Chat history retrieved successfully",
+            "data": {
+                "messages": updated_chat["messages"],
+                "chat_id": str(updated_chat["_id"]),
+            },
+        }
 
     except Exception:
         logger.exception(
@@ -175,7 +188,13 @@ async def get_user_chat_history(request: Request):
         user_id = request.state.user_id
         chats = await get_all_user_chats(user_id)
         logger.info(f"Retrieved {len(chats)} chats for user {user_id}")
-        return chats
+        return {
+            "success": True,
+            "message": "Chat history retrieved successfully",
+            "data": {
+                "chats": chats,
+            },
+        }
 
     except Exception:
         logger.exception(f"Error retrieving chat history for user {user_id}")
@@ -228,17 +247,13 @@ async def get_token(user_id: str):
 async def upload_files(
     request: Request,
     files: List[UploadFile] = File(...),
-    other_user_id: str = Form(...),
+    chat_id: str = Form(...),
 ):
     try:
         current_user_id = request.state.user_id
-        chat = await get_chat(current_user_id, other_user_id)
-        if not chat or "_id" not in chat:
-            raise ValueError("Chat not found")
 
-        chatid = chat["_id"]
-        uploaded_files = [process_and_upload_file(file, chatid) for file in files]
-        logger.info(f"Uploaded {len(uploaded_files)} file(s) for chat {chatid}")
+        uploaded_files = [process_and_upload_file(file, chat_id) for file in files]
+        logger.info(f"Uploaded {len(uploaded_files)} file(s) for chat {chat_id}")
 
         return {
             "message": f"{len(uploaded_files)} file(s) uploaded successfully",
@@ -251,7 +266,7 @@ async def upload_files(
 
     except Exception:
         logger.exception(
-            f"Unexpected error during file upload for users {current_user_id} and {other_user_id}"
+            f"Unexpected error during file upload for users {current_user_id} and {chat_id}"
         )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
