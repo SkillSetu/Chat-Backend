@@ -10,24 +10,28 @@ from .exceptions import DatabaseOperationError
 
 async def get_chat(user_id1: str, user_id2: str) -> Optional[Dict]:
     users = sorted([user_id1, user_id2])
-    return await db.get_collection("messages").find_one({"users": users})
+    return await db.get_collection("chats").find_one({"users": users})
 
 
 async def get_all_user_chats(user_id: str) -> List[Message]:
     chats = (
-        await db.get_collection("messages")
-        .find({"users": user_id})
+        await db.get_collection("chats")
+        .find(
+            {"users": user_id},
+        )
         .to_list(length=1000)
     )
 
     for chat in chats:
         chat["_id"] = str(chat["_id"])
+        chat["last_message"] = chat["messages"][-1].get("message")
+        chat.pop("messages")
 
     return chats
 
 
 async def mark_messages_as_read(chat: ChatMessage, current_user_id: str):
-    messages = db.get_collection("messages")
+    messages = db.get_collection("chats")
 
     all_messages = chat["messages"]
     delivered_messages = [
@@ -58,7 +62,7 @@ async def create_empty_chat(user_id: str, other_user_id: str) -> ChatMessage:
         last_updated=datetime.utcnow(),
     )
 
-    await db.get_collection("messages").insert_one(chat.dict())
+    await db.get_collection("chats").insert_one(chat.dict())
     return chat
 
 
@@ -68,7 +72,7 @@ async def block_user(user_id: str, blocked_user_id: str):
         if not chat:
             raise ValueError("Chat not found")
 
-        await db.get_collection("messages").update_one(
+        await db.get_collection("chats").update_one(
             {"_id": chat["_id"]},
             {"$set": {"is_blocked": True, "blocked_by": user_id}},
         )
@@ -78,11 +82,10 @@ async def block_user(user_id: str, blocked_user_id: str):
 
 
 async def mark_message_as_read(chat_id: str, message_id: str):
-    messages = db.get_collection("messages")
+    chats = db.get_collection("chats")
 
     try:
-        print("we are here")
-        await messages.update_one(
+        await chats.update_one(
             {"_id": ObjectId(chat_id), "messages.id": message_id},
             {"$set": {"messages.$.status": "read"}},
         )
