@@ -29,7 +29,7 @@ async def handle_send_chat_message(chat_message: Message) -> None:
         DatabaseOperationError: If database operations fail.
     """
 
-    messages = db.get_collection("messages")
+    messages = db.get_collection("chats")
     chat_doc = await get_chat(chat_message.sender, chat_message.receiver)
 
     try:

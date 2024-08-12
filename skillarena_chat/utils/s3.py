@@ -1,13 +1,13 @@
-from typing import List
 import base64
 import logging
+from typing import List
 
 import boto3
 from Crypto.Cipher import AES
+from Crypto.Hash import SHA256
 from Crypto.Util.Padding import pad, unpad
 from botocore.exceptions import ClientError
 from fastapi import HTTPException, UploadFile
-from Crypto.Hash import SHA256
 
 from skillarena_chat.config import config
 

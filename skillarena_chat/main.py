@@ -207,7 +207,7 @@ async def get_user_chat_history(request: Request):
 @app.get("/get_token/{user_id}")
 async def get_token(user_id: str):
     try:
-        access_token = create_access_token(data={"sub": user_id})
+        access_token = create_access_token(data={"_id": user_id})
         logger.info(f"Created access token for user {user_id}")
         return {"access_token": access_token, "token_type": "bearer"}
 
@@ -256,8 +256,11 @@ async def upload_files(
         logger.info(f"Uploaded {len(uploaded_files)} file(s) for chat {chat_id}")
 
         return {
+            "success": True,
             "message": f"{len(uploaded_files)} file(s) uploaded successfully",
-            "files": uploaded_files,
+            "data": {
+                "files": uploaded_files,
+            },
         }
 
     except ValueError as ve:

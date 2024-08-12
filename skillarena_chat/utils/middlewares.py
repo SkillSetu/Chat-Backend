@@ -22,18 +22,18 @@ class AuthMiddleware(BaseHTTPMiddleware):
         if not token:
             return await call_next(request)
             # !Do not allow unauthenticated access, Change this to return a 401 response
-            # return JSONResponse(
-            #     status_code=401,
-            #     content={"detail": "Missing Authorization header"},
-            #     headers={"WWW-Authenticate": "Bearer"},
-            # )
+            return JSONResponse(
+                status_code=401,
+                content={"detail": "Missing Authorization header"},
+                headers={"WWW-Authenticate": "Bearer"},
+            )
 
         try:
-            token = token.split("Bearer ")[1]
-            payload = jwt.decode(
+            token = token.split("Bearer ")[1].strip()
+            decoded = jwt.decode(
                 token, config.ACCESS_TOKEN_SECRET, algorithms=[config.ALGORITHM]
             )
-            user_id = payload.get("sub")
+            user_id = decoded.get("_id")
 
             if user_id is None:
                 raise JWTError("User ID not found in token")

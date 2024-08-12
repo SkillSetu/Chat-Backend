@@ -32,7 +32,7 @@ async def get_current_user(token: str = Depends(oauth2_scheme)) -> str:
         payload = jwt.decode(
             token, config.ACCESS_TOKEN_SECRET, algorithms=[config.ALGORITHM]
         )
-        user_id: str | None = payload.get("sub")
+        user_id: str | None = payload.get("_id")
 
         if user_id is None:
             raise HTTPException(
