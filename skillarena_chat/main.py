@@ -144,6 +144,12 @@ async def process_websocket_message(websocket: WebSocket, data: dict, user_id: s
 async def get_chat_history(request: Request, other_user_id: str):
     try:
         current_user = request.state.user_id
+
+        if current_user == other_user_id:
+            return JSONResponse(
+                status_code=400, content={"message": "You can't chat with yourself"}
+            )
+
         chat = await get_chat(current_user, other_user_id)
 
         if not chat:
@@ -334,4 +340,4 @@ async def general_exception_handler(request: Request, exc: Exception):
 if __name__ == "__main__":
     import uvicorn
 
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run(app, host="0.0.0.0", port=3000)
