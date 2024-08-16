@@ -70,7 +70,6 @@ async def websocket_chat(websocket: WebSocket, user_id: str, other_user_id: str)
         logger.warning(f"Socket connection failed for user {user_id}: {e.detail}")
         await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
 
-
 @app.post("/upload_files")
 async def upload_files(
     request: Request,
