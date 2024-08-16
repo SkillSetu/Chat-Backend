@@ -13,8 +13,7 @@ from fastapi import (
     status,
 )
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse, JSONResponse
-from fastapi.templating import Jinja2Templates
+from fastapi.responses import JSONResponse
 
 from skillarena_chat.models import Message
 from skillarena_chat.utils.manager import chat_manager, connection_manager
@@ -35,7 +34,6 @@ logger = logging.getLogger(__name__)
 current_dir = os.path.dirname(os.path.abspath(__file__))
 
 app = FastAPI()
-templates = Jinja2Templates(directory=os.path.join(current_dir, "templates"))
 
 app.add_middleware(
     CORSMiddleware,
@@ -44,19 +42,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-
-@app.get("/", response_class=HTMLResponse)
-async def get(request: Request):
-    try:
-        return templates.TemplateResponse("chat.html", {"request": request})
-
-    except Exception:
-        logger.exception("Error rendering chat template")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Internal server error",
-        )
 
 
 @app.websocket("/ws/connect/{user_id}")
