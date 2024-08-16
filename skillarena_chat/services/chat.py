@@ -3,9 +3,9 @@ from typing import Dict, List, Optional
 
 from bson import ObjectId
 
-from ..db.database import db
-from ..models import ChatMessage, Message
-from .exceptions import DatabaseOperationError
+from skillarena_chat.db.database import db
+from skillarena_chat.models import ChatMessage, Message
+from skillarena_chat.services.exceptions import DatabaseOperationError
 
 
 async def get_chat(user_id1: str, user_id2: str) -> Optional[Dict]:
@@ -13,7 +13,7 @@ async def get_chat(user_id1: str, user_id2: str) -> Optional[Dict]:
     return await db.get_collection("chats").find_one({"users": users})
 
 
-async def get_all_user_chats(user_id: str) -> List[Message]:
+async def get_recipients_list(user_id: str) -> List[Message]:
     chats = (
         await db.get_collection("chats")
         .find(
@@ -24,7 +24,12 @@ async def get_all_user_chats(user_id: str) -> List[Message]:
 
     for chat in chats:
         chat["_id"] = str(chat["_id"])
-        chat["last_message"] = chat["messages"][-1].get("message")
+        chat["receiver"] = (
+            chat["users"][1] if chat["users"][0] != user_id else chat["users"][0]
+        )
+        chat["last_message"] = (
+            len(chat["messages"]) > 0 and chat["messages"][-1].get("message") or ""
+        )
         chat.pop("messages")
 
     return chats

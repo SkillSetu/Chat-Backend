@@ -10,27 +10,20 @@ from fastapi import (
     Request,
     UploadFile,
     WebSocket,
-    WebSocketDisconnect,
     status,
 )
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse, JSONResponse
-from fastapi.templating import Jinja2Templates
+from fastapi.responses import JSONResponse
 
-from .models import Message
-from .services.auth import create_access_token, get_current_user
-from .services.chat import (
-    block_user,
-    create_empty_chat,
-    get_all_user_chats,
-    get_chat,
-    mark_message_as_read,
-    mark_messages_as_read,
+from skillarena_chat.models import Message
+from skillarena_chat.utils.manager import chat_manager, connection_manager
+from skillarena_chat.utils.s3 import (
+    generate_presigned_urls,
+    process_and_upload_file,
 )
-from .utils.manager import manager
-from .utils.middlewares import AuthMiddleware
-from .utils.s3 import generate_presigned_urls, process_and_upload_file
-from .utils.services import handle_send_chat_message
+from skillarena_chat.utils.services import handle_send_chat_message
+
+from .services.chat import block_user
 
 
 logging.basicConfig(
@@ -41,7 +34,6 @@ logger = logging.getLogger(__name__)
 current_dir = os.path.dirname(os.path.abspath(__file__))
 
 app = FastAPI()
-templates = Jinja2Templates(directory=os.path.join(current_dir, "templates"))
 
 app.add_middleware(
     CORSMiddleware,
@@ -51,203 +43,32 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-exempt_routes = ["/", "/get_token/{user_id}"]
-app.add_middleware(AuthMiddleware, exempt_routes=exempt_routes)
 
-
-@app.get("/", response_class=HTMLResponse)
-async def get(request: Request):
+@app.websocket("/ws/connect/{user_id}")
+async def websocket_connect(websocket: WebSocket, user_id: str):
     try:
-        return templates.TemplateResponse("chat.html", {"request": request})
+        await connection_manager.connect(websocket, user_id)
 
-    except Exception:
-        logger.exception("Error rendering chat template")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Internal server error",
-        )
+    except HTTPException as e:
+        logger.warning(f"Socket connection failed for user {user_id}: {e.detail}")
+        await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
 
 
-@app.websocket("/ws/{token}")
-async def websocket_endpoint(websocket: WebSocket, token: str):
-    user_id = None
+@app.websocket("/ws/{user_id}/{other_user_id}")
+async def websocket_chat(websocket: WebSocket, user_id: str, other_user_id: str):
     try:
-        user_id = await get_current_user(token)
-        await manager.connect(websocket, user_id)
-        logger.info(f"User {user_id} connected")
+        await chat_manager.connect(websocket, user_id, other_user_id)
 
         while True:
             data: dict = await websocket.receive_json()
+
             if data.get("type") == "message":
-                await process_websocket_message(websocket, data.get("data"), user_id)
-
-            elif data.get("type") == "receipt_update":
-                await mark_message_as_read(
-                    chat_id=data.get("data").get("chat_id"),
-                    message_id=data.get("data").get("message_id"),
-                )
-
-                await manager.send_receipt_update(
-                    chat_id=data.get("data").get("chat_id"),
-                    user_id=data.get("data").get("user_id"),
-                    message_id=data.get("data").get("message_id"),
-                    updated_status=data.get("data").get("status"),
-                    stop=data.get("data").get("stop"),
-                )
-
-            else:
-                logger.warning(f"Invalid message type: {data.get('type')}")
+                message = Message(**data.get("data"))
+                await handle_send_chat_message(message)
 
     except HTTPException as e:
-        logger.warning(f"Invalid token for user {user_id}: {e.detail}")
+        logger.warning(f"Socket connection failed for user {user_id}: {e.detail}")
         await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
-
-    except WebSocketDisconnect:
-        if user_id:
-            manager.disconnect(user_id)
-            logger.info(f"User {user_id} disconnected")
-
-    except Exception:
-        logger.exception(f"Unexpected error in WebSocket connection for user {user_id}")
-        await websocket.close(code=status.WS_1011_INTERNAL_ERROR)
-
-
-async def process_websocket_message(websocket: WebSocket, data: dict, user_id: str):
-    try:
-        data["sender"] = user_id
-        chat_message = Message(**data)
-
-        if not chat_message.receiver or not chat_message.message:
-            raise ValueError("Missing receiver or message")
-
-        await handle_send_chat_message(chat_message)
-        logger.info(f"Message sent from {user_id} to {chat_message.receiver}")
-
-        # TODO: Uncomment this when push notifications are implemented
-        # if not await manager.is_connected(chat_message.receiver):
-        #     await send_push_message(
-        #         chat_message.receiver,
-        #         f"New message from {user_id}",
-        #         {"message": chat_message.message},
-        #     )
-
-    except ValueError as e:
-        logger.error(f"Invalid message format from user {user_id}: {str(e)}")
-        await websocket.send_json({"error": str(e)})
-
-    except Exception:
-        logger.exception(f"Error handling chat message from user {user_id}")
-        await websocket.send_json({"error": "Failed to send message"})
-
-
-@app.get("/chat_history/{other_user_id}")
-async def get_chat_history(request: Request, other_user_id: str):
-    try:
-        current_user = request.state.user_id
-
-        if current_user == other_user_id:
-            return JSONResponse(
-                status_code=400, content={"message": "You can't chat with yourself"}
-            )
-
-        chat = await get_chat(current_user, other_user_id)
-
-        if not chat:
-            chat = await create_empty_chat(current_user, other_user_id)
-            logger.info(f"Created empty chat for {current_user} and {other_user_id}")
-        else:
-            await mark_messages_as_read(chat, current_user)
-            logger.info(
-                f"Marked messages as read for {current_user} in chat with {other_user_id}"
-            )
-
-        updated_chat = await get_chat(current_user, other_user_id)
-
-        if not updated_chat:
-            return {
-                "success": False,
-                "message": "Chat not found",
-            }
-
-        return {
-            "success": True,
-            "message": "Chat history retrieved successfully",
-            "data": {
-                "messages": updated_chat["messages"],
-                "chat_id": str(updated_chat["_id"]),
-            },
-        }
-
-    except Exception:
-        logger.exception(
-            f"Error retrieving chat history for {current_user} and {other_user_id}"
-        )
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to retrieve chat history",
-        )
-
-
-@app.get("/chat_history")
-async def get_user_chat_history(request: Request):
-    try:
-        user_id = request.state.user_id
-        chats = await get_all_user_chats(user_id)
-        logger.info(f"Retrieved {len(chats)} chats for user {user_id}")
-        return {
-            "success": True,
-            "message": "Chat history retrieved successfully",
-            "data": {
-                "chats": chats,
-            },
-        }
-
-    except Exception:
-        logger.exception(f"Error retrieving chat history for user {user_id}")
-        raise HTTPException(
-            status_code=500,
-            detail="Failed to retrieve chat history",
-        )
-
-
-@app.get("/get_token/{user_id}")
-async def get_token(user_id: str):
-    try:
-        access_token = create_access_token(data={"_id": user_id})
-        logger.info(f"Created access token for user {user_id}")
-        return {"access_token": access_token, "token_type": "bearer"}
-
-    except Exception:
-        logger.exception(f"Error creating access token for user {user_id}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to create access token",
-        )
-
-
-# TODO: Uncomment this when push notifications are implemented
-# @app.post("/send_push_message")
-# async def send_push_message_endpoint(
-#     client_id: str = Form(...),
-#     message: str = Form(...),
-#     extra: dict = Form(None),
-# ):
-#     try:
-#         response = await send_push_message(client_id, message, extra)
-#         logger.info(f"Push message sent to client {client_id}")
-#         return response
-
-#     except HTTPException as e:
-#         logger.error(f"Error sending push message to client {client_id}: {e.detail}")
-#         raise e
-
-#     except Exception:
-#         logger.exception(f"Unexpected error sending push message to client {client_id}")
-#         raise HTTPException(
-#             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-#             detail="Failed to send push message",
-#         )
-
 
 @app.post("/upload_files")
 async def upload_files(
