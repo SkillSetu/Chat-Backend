@@ -19,7 +19,6 @@ class Config:
         "AWS_SECRET_ACCESS_KEY",
         "AWS_REGION",
         "S3_BUCKET_NAME",
-        "EXPO_TOKEN",
         "ACCESS_TOKEN_SECRET",
     ]
 
@@ -29,7 +28,6 @@ class Config:
         self.AWS_SECRET_ACCESS_KEY = os.getenv("AWS_SECRET_ACCESS_KEY")
         self.AWS_REGION = os.getenv("AWS_REGION")
         self.S3_BUCKET_NAME = os.getenv("S3_BUCKET_NAME")
-        self.EXPO_TOKEN = os.getenv("EXPO_TOKEN")
         self.ACCESS_TOKEN_SECRET = os.getenv("ACCESS_TOKEN_SECRET")
         self.ENCRYPTION_KEY = os.getenv("ENCRYPTION_KEY")
         self.ALGORITHM = "HS256"

@@ -4,7 +4,6 @@ from fastapi import WebSocket
 
 from skillarena_chat.db.database import db
 from skillarena_chat.models import ChatMessage, Message
-from skillarena_chat.services.auth import get_current_user
 from skillarena_chat.services.chat import get_chat, get_recipients_list
 
 
@@ -20,9 +19,8 @@ class ConnectionManager:
     def __init__(self):
         self.active_connections: dict[str, WebSocket] = {}
 
-    async def connect(self, websocket: WebSocket, token: str):
+    async def connect(self, websocket: WebSocket, user_id: str):
         await websocket.accept()
-        user_id = await get_current_user(token)
 
         self.active_connections[user_id] = websocket
 

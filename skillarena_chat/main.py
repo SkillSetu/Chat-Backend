@@ -17,9 +17,7 @@ from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 
 from skillarena_chat.models import Message
-from skillarena_chat.services.auth import get_current_user
 from skillarena_chat.utils.manager import chat_manager, connection_manager
-from skillarena_chat.utils.middlewares import AuthMiddleware
 from skillarena_chat.utils.s3 import (
     generate_presigned_urls,
     process_and_upload_file,
@@ -47,9 +45,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-exempt_routes = ["/", "/get_token/{user_id}"]
-app.add_middleware(AuthMiddleware, exempt_routes=exempt_routes)
-
 
 @app.get("/", response_class=HTMLResponse)
 async def get(request: Request):
@@ -64,20 +59,19 @@ async def get(request: Request):
         )
 
 
-@app.websocket("/ws/connect/{token}")
-async def websocket_connect(websocket: WebSocket, token: str):
+@app.websocket("/ws/connect/{user_id}")
+async def websocket_connect(websocket: WebSocket, user_id: str):
     try:
-        await connection_manager.connect(websocket, token)
+        await connection_manager.connect(websocket, user_id)
 
     except HTTPException as e:
-        logger.warning(f"Invalid token for user {token}: {e.detail}")
+        logger.warning(f"Socket connection failed for user {user_id}: {e.detail}")
         await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
 
 
-@app.websocket("/ws/{token}/{other_user_id}")
-async def websocket_chat(websocket: WebSocket, token: str, other_user_id: str):
+@app.websocket("/ws/{user_id}/{other_user_id}")
+async def websocket_chat(websocket: WebSocket, user_id: str, other_user_id: str):
     try:
-        user_id = await get_current_user(token)
         await chat_manager.connect(websocket, user_id, other_user_id)
 
         while True:
@@ -88,7 +82,7 @@ async def websocket_chat(websocket: WebSocket, token: str, other_user_id: str):
                 await handle_send_chat_message(message)
 
     except HTTPException as e:
-        logger.warning(f"Invalid token for user {token}: {e.detail}")
+        logger.warning(f"Socket connection failed for user {user_id}: {e.detail}")
         await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
 
 
