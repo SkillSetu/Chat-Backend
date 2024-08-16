@@ -1,94 +1,34 @@
 import gzip
 import io
 import logging
-from datetime import datetime
 
 from PIL import Image
 from fastapi import UploadFile
 from fastapi.security import OAuth2PasswordBearer
 
-from ..db.database import db
-from ..models import ChatMessage, Message
-from ..services.chat import get_chat
-from ..services.exceptions import DatabaseOperationError
-from .manager import manager
+from skillarena_chat.db.database import db
+from skillarena_chat.models import Message
+from skillarena_chat.services.chat import get_chat
+from skillarena_chat.utils.manager import chat_manager
 
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 logger = logging.getLogger(__name__)
 
 
-async def handle_send_chat_message(chat_message: Message) -> None:
-    """
-    Handle sending a chat message, including database updates and WebSocket notifications.
+async def handle_send_chat_message(message: Message):
+    chats_collection = db.get_collection("chats")
+    chat = await get_chat(message.sender, message.receiver)
 
-    Args:
-        chat_message: The message to be sent.
+    await chat_manager.send_message(message, message.sender)
+    await chat_manager.send_message(message, message.receiver)
 
-    Raises:
-        DatabaseOperationError: If database operations fail.
-    """
-
-    messages = db.get_collection("chats")
-    chat_doc = await get_chat(chat_message.sender, chat_message.receiver)
-
-    try:
-        if chat_doc:
-            await messages.update_one(
-                {"_id": chat_doc["_id"]},
-                {
-                    "$push": {"messages": chat_message.dict()},
-                    "$set": {"last_updated": datetime.utcnow()},
-                },
-            )
-        else:
-            new_chat = ChatMessage(
-                messages=[chat_message],
-                users=sorted([chat_message.sender, chat_message.receiver]),
-                created_at=datetime.utcnow(),
-                last_updated=datetime.utcnow(),
-            )
-            await messages.insert_one(new_chat.dict())
-            chat_doc = await get_chat(chat_message.sender, chat_message.receiver)
-
-        message_json = chat_message.model_dump_json()
-        await manager.send_personal_message(message_json, chat_message.sender)
-        await manager.send_personal_message(message_json, chat_message.receiver)
-
-        await messages.update_one(
-            {"_id": chat_doc["_id"], "messages.id": chat_message.id},
-            {"$set": {"messages.$.status": "delivered"}},
-        )
-
-        await manager.send_receipt_update(
-            chat_id=str(chat_doc["_id"]),
-            user_id=chat_message.sender,
-            message_id=chat_message.id,
-            updated_status="delivered",
-        )
-        await manager.send_receipt_update(
-            chat_id=str(chat_doc["_id"]),
-            user_id=chat_message.receiver,
-            message_id=chat_message.id,
-            updated_status="read",
-        )
-
-    except Exception as e:
-        logger.error(f"Error handling chat message: {str(e)}")
-        raise DatabaseOperationError("Failed to handle chat message") from e
+    await chats_collection.update_one(
+        {"_id": chat["_id"]}, {"$push": {"messages": message.dict()}}
+    )
 
 
 def compress_file(file: UploadFile) -> io.BytesIO:
-    """
-    Compress the given file.
-
-    Args:
-        file: The UploadFile object to compress.
-
-    Returns:
-        io.BytesIO: A BytesIO object containing the compressed file data.
-    """
-
     compressed_file = io.BytesIO()
 
     if file.content_type.startswith("image"):

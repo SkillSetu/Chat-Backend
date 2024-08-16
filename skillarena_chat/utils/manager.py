@@ -1,6 +1,17 @@
-import json
+import logging
 
 from fastapi import WebSocket
+
+from skillarena_chat.db.database import db
+from skillarena_chat.models import ChatMessage, Message
+from skillarena_chat.services.auth import get_current_user
+from skillarena_chat.services.chat import get_chat, get_recipients_list
+
+
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+)
+logger = logging.getLogger(__name__)
 
 
 class ConnectionManager:
@@ -8,11 +19,27 @@ class ConnectionManager:
 
     def __init__(self):
         self.active_connections: dict[str, WebSocket] = {}
-        self.active_chats: dict[str, dict] = {}
 
-    async def connect(self, websocket: WebSocket, user_id: str):
+    async def connect(self, websocket: WebSocket, token: str):
         await websocket.accept()
+        user_id = await get_current_user(token)
+
         self.active_connections[user_id] = websocket
+
+        recipients_list = await get_recipients_list(user_id)
+        for recipient in recipients_list:
+            await websocket.send_json(
+                {
+                    "type": "recipient_list",
+                    "data": {
+                        "chat_id": recipient["_id"],
+                        "receiver": recipient["receiver"],
+                        "last_message": recipient["last_message"],
+                        "is_blocked": recipient["is_blocked"],
+                        "created_at": recipient["created_at"].isoformat(),
+                    },
+                }
+            )
 
     def disconnect(self, user_id: str):
         if user_id in self.active_connections:
@@ -20,40 +47,45 @@ class ConnectionManager:
 
         del self.active_connections[user_id]
 
-    async def send_personal_message(self, message: str, user_id: str):
-        if user_id in self.active_connections:
-            await self.active_connections[user_id].send_text(
-                json.dumps({"type": "message", "data": message})
-            )
-
-    async def send_receipt_update(
-        self,
-        chat_id: str,
-        message_id: str,
-        user_id: str,
-        updated_status: str,
-        stop: bool = False,
-    ):
-        if user_id in self.active_connections:
-            await self.active_connections[user_id].send_text(
-                json.dumps(
-                    {
-                        "type": "receipt_update",
-                        "data": json.dumps(
-                            {
-                                "chat_id": chat_id,
-                                "user_id": user_id,
-                                "message_id": message_id,
-                                "status": updated_status,
-                                "stop": stop,
-                            }
-                        ),
-                    }
-                )
-            )
-
     async def is_connected(self, user_id: str):
         return user_id in self.active_connections
 
 
-manager = ConnectionManager()
+class ChatManager:
+    def __init__(self):
+        self.active_chats: dict[str, WebSocket] = {}
+
+    async def connect(
+        self, websocket: WebSocket, user_id: str, other_user_id: str
+    ) -> None:
+        await websocket.accept()
+        logger.info(f"Chat between {user_id} and {other_user_id} established")
+
+        self.active_chats[user_id] = websocket
+        chat = await get_chat(user_id, other_user_id)
+
+        if chat is None:
+            chat_collection = db.get_collection("chats")
+            newChat = ChatMessage(users=sorted([user_id, other_user_id]), messages=[])
+
+            await chat_collection.insert_one(newChat.dict())
+
+            return
+
+        for message in chat["messages"]:
+            await websocket.send_json(
+                {
+                    "type": "message",
+                    "data": message,
+                }
+            )
+
+    async def send_message(self, message: Message, user_id: str) -> None:
+        if user_id in self.active_chats:
+            await self.active_chats[user_id].send_json(
+                {"type": "message", "data": message.dict()}
+            )
+
+
+connection_manager = ConnectionManager()
+chat_manager = ChatManager()

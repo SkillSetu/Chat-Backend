@@ -5,7 +5,7 @@ from fastapi.responses import JSONResponse
 from jose import ExpiredSignatureError, JWTError, jwt
 from starlette.middleware.base import BaseHTTPMiddleware
 
-from ..config import config
+from skillarena_chat.config import config
 
 
 class AuthMiddleware(BaseHTTPMiddleware):

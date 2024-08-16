@@ -201,9 +201,9 @@
 		}
 
 		function connectWebSocket() {
-			ws = new WebSocket(
-				`${window.location.protocol === "https:" ? "wss:" : "ws:"}//${window.location.host}/ws/${token}`
-			);
+			const url = `${window.location.protocol === "https:" ? "wss:" : "ws:"}//${window.location.host}/ws/${token}`;
+			console.log(url);
+			ws = new WebSocket(url);
 
 			ws.onmessage = function (event) {
 				const messageData = JSON.parse(event.data);

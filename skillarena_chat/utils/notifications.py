@@ -9,9 +9,8 @@ from exponent_server_sdk import (
     PushServerError,
     PushTicketError,
 )
-
-from ..config import config
-from ..db.database import db
+from skillarena_chat.config import config
+from skillarena_chat.db.database import db
 
 
 session = requests.Session()

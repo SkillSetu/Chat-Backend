@@ -5,8 +5,8 @@ from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from jose import ExpiredSignatureError, JWTError, jwt
 
-from ..config import config
-from .exceptions import TokenCreationError
+from skillarena_chat.config import config
+from skillarena_chat.services.exceptions import TokenCreationError
 
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")

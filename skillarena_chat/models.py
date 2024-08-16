@@ -13,12 +13,12 @@ class FileData(BaseModel):
 
 class Message(BaseModel):
     id: str = Field(default_factory=lambda: str(ObjectId()), alias="_id")
-    sender: Optional[str] = None
+    sender: str
     receiver: str
     status: Literal["sent", "delivered", "read"] = "sent"
     message: str
     attachments: Optional[list[str]] = None
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: str = Field(default_factory=lambda: datetime.utcnow().isoformat())
 
 
 class ChatMessage(BaseModel):
