@@ -1,4 +1,5 @@
 import base64
+from datetime import datetime
 import logging
 from typing import List
 
@@ -8,6 +9,7 @@ from Crypto.Hash import SHA256
 from Crypto.Util.Padding import pad, unpad
 from botocore.exceptions import ClientError
 from fastapi import HTTPException, UploadFile
+from base64 import b64decode
 
 from skillarena_chat.config import config
 
@@ -33,11 +35,16 @@ def encrypt_filename(filename):
     return base64.b64encode(encrypted).decode("utf-8")
 
 
-def decrypt_filename(encrypted_filename):
+def decrypt_filename(encrypted_filename: str) -> str:
     cipher = AES.new(get_encryption_key(), AES.MODE_ECB)
-    encrypted = base64.b64decode(encrypted_filename.encode("utf-8"))
-    decrypted = cipher.decrypt(encrypted)
-    return unpad(decrypted, AES.block_size).decode("utf-8")
+    padded_filename = base64.b64decode(encrypted_filename)
+    decrypted = cipher.decrypt(padded_filename)
+    return unpad(decrypted, 16).decode("utf-8")
+
+
+def get_public_url(encrypted_filename):
+    decrypted_filename = decrypt_filename(encrypted_filename)
+    return f"https://{config.S3_BUCKET_NAME}.s3.amazonaws.com/{decrypted_filename}"
 
 
 def generate_presigned_urls(file_names: List[str]) -> List[str]:
@@ -56,7 +63,7 @@ def generate_presigned_urls(file_names: List[str]) -> List[str]:
     return data
 
 
-def process_and_upload_file(file: UploadFile, chatid: str) -> dict:
+def process_and_upload_attachment(file: UploadFile, chatid: str) -> dict:
     """Process and upload the given file to S3.
 
     Args:
@@ -95,9 +102,13 @@ def process_and_upload_file(file: UploadFile, chatid: str) -> dict:
         )
 
         return {
-            "original_file_name": file.filename,
-            "stored_file_name": file_name,
             "url": encrypted_url,
+            "metadata": {
+                "originalname": file.filename,
+                "mimetype": content_type,
+                "size": file_size,
+                "createdAt": datetime.utcnow(),
+            },
         }
 
     except ClientError as e:
