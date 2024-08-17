@@ -23,10 +23,18 @@ async def get_recipients_list(user_id: str) -> List[Message]:
     )
 
     for chat in chats:
-        chat["_id"] = str(chat["_id"])
-        chat["receiver"] = (
-            chat["users"][1] if chat["users"][0] != user_id else chat["users"][0]
+        receiver_id = (
+            chat["users"][1] if chat["users"][0] == user_id else chat["users"][0]
         )
+        receiver: dict = await db.get_collection("users").find_one(
+            {"_id": ObjectId(receiver_id)}
+        )
+        avatar = receiver["avatar"]["url"] if receiver.get("avatar") else ""
+
+        chat["_id"] = str(chat["_id"])
+        chat["receiver"] = receiver_id
+        chat["name"] = receiver["firstName"] + " " + receiver["lastName"]
+        chat["avatar"] = avatar
         chat["last_message"] = (
             len(chat["messages"]) > 0 and chat["messages"][-1].get("message") or ""
         )

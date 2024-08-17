@@ -40,6 +40,11 @@ def decrypt_filename(encrypted_filename):
     return unpad(decrypted, AES.block_size).decode("utf-8")
 
 
+def get_public_url(encrypted_filename):
+    decrypted_filename = decrypt_filename(encrypted_filename)
+    return f"https://{config.S3_BUCKET_NAME}.s3.amazonaws.com/{decrypted_filename}"
+
+
 def generate_presigned_urls(file_names: List[str]) -> List[str]:
     data = []
     for file_name in file_names:

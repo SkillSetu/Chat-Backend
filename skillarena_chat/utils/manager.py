@@ -32,9 +32,11 @@ class ConnectionManager:
                     "data": {
                         "chat_id": recipient["_id"],
                         "receiver": recipient["receiver"],
+                        "name": recipient["name"],
+                        "avatar": recipient["avatar"],
                         "last_message": recipient["last_message"],
                         "is_blocked": recipient["is_blocked"],
-                        "created_at": recipient["created_at"].isoformat(),
+                        "last_updated": recipient["last_updated"].isoformat(),
                     },
                 }
             )
