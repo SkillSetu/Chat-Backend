@@ -13,11 +13,12 @@ ws://{{BASE_URL}}/ws/connect/{user_id}
 {
   "type": "recipient_list",
   "data": {
-    "chat_id": "66bf5fb2f6076d356e2c768d",
-    "receiver": "66bf2b9e3fce23d4019dee06",
+    "chat_id": "66c0a9f8820d0e9f18db653c",
+    "receiver": "66af7f527c91e266b47c4731",
+    "name": "Shreyansh  Jain",
     "last_message": "Hello! My name is Chirag",
     "is_blocked": false,
-    "created_at": "2024-08-16T14:18:26.444000"
+    "last_updated": "2024-08-17T13:47:36.432000"
   }
 }
 ```

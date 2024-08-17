@@ -8,6 +8,7 @@ from Crypto.Hash import SHA256
 from Crypto.Util.Padding import pad, unpad
 from botocore.exceptions import ClientError
 from fastapi import HTTPException, UploadFile
+from base64 import b64decode
 
 from skillarena_chat.config import config
 
@@ -33,11 +34,14 @@ def encrypt_filename(filename):
     return base64.b64encode(encrypted).decode("utf-8")
 
 
-def decrypt_filename(encrypted_filename):
-    cipher = AES.new(get_encryption_key(), AES.MODE_ECB)
-    encrypted = base64.b64decode(encrypted_filename.encode("utf-8"))
-    decrypted = cipher.decrypt(encrypted)
-    return unpad(decrypted, AES.block_size).decode("utf-8")
+def decrypt_filename(encrypted_filename: str) -> str:
+    secret_key = config.ENCRYPTION_KEY
+    iv = "1020304050607080"
+    ciphertext = b64decode(encrypted_filename)
+    derived_key = b64decode(secret_key)
+    cipher = AES.new(derived_key, AES.MODE_CBC, iv.encode("utf-8"))
+    decrypted_data = cipher.decrypt(ciphertext)
+    return unpad(decrypted_data, 16).decode("utf-8")
 
 
 def get_public_url(encrypted_filename):

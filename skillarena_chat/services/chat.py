@@ -39,15 +39,12 @@ async def get_recipients_list(user_id: str) -> List[Message]:
 
         if receiver_id != "skillarena":
             receiver: dict = await db.get_collection("users").find_one(
-                {"_id": ObjectId(receiver_id)}
+                {"_id": ObjectId(receiver_id)}, {"firstName": 1, "lastName": 1}
             )
-            avatar = receiver["avatar"]["url"] if receiver.get("avatar") else ""
 
             chat["name"] = receiver["firstName"] + " " + receiver["lastName"]
-            chat["avatar"] = avatar
         else:
             chat["name"] = "Skillarena"
-            chat["avatar"] = ""
 
     return chats
 
