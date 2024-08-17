@@ -42,6 +42,13 @@ app.add_middleware(
 )
 
 
+@app.websocket("/ws")
+async def websocket_running(websocket: WebSocket):
+    await websocket.accept()
+    await websocket.send_json({"message": "Skillarena Chat Server is running"})
+    logger.info("Skillarena Chat Server is running")
+
+
 @app.websocket("/ws/connect/{user_id}")
 async def websocket_connect(websocket: WebSocket, user_id: str):
     try:
