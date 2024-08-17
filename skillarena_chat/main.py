@@ -19,11 +19,9 @@ from skillarena_chat.models import Message
 from skillarena_chat.utils.manager import chat_manager, connection_manager
 from skillarena_chat.utils.s3 import (
     generate_presigned_urls,
-    process_and_upload_file,
+    process_and_upload_attachment,
 )
 from skillarena_chat.utils.services import handle_send_chat_message
-
-from .services.chat import block_user
 
 
 logging.basicConfig(
@@ -70,23 +68,22 @@ async def websocket_chat(websocket: WebSocket, user_id: str, other_user_id: str)
         logger.warning(f"Socket connection failed for user {user_id}: {e.detail}")
         await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
 
-@app.post("/upload_files")
-async def upload_files(
-    request: Request,
-    files: List[UploadFile] = File(...),
-    chat_id: str = Form(...),
+
+@app.post("/upload_attachments")
+async def upload_attachments(
+    files: List[UploadFile] = File(...), chat_id: str = Form(...)
 ):
     try:
-        current_user_id = request.state.user_id
-
-        uploaded_files = [process_and_upload_file(file, chat_id) for file in files]
-        logger.info(f"Uploaded {len(uploaded_files)} file(s) for chat {chat_id}")
+        uploaded_attachments = [
+            process_and_upload_attachment(file, chat_id) for file in files
+        ]
+        logger.info(f"Uploaded {len(uploaded_attachments)} file(s) for chat {chat_id}")
 
         return {
             "success": True,
-            "message": f"{len(uploaded_files)} file(s) uploaded successfully",
+            "message": f"{len(uploaded_attachments)} file(s) uploaded successfully",
             "data": {
-                "files": uploaded_files,
+                "attachments": uploaded_attachments,
             },
         }
 
@@ -95,41 +92,29 @@ async def upload_files(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(ve))
 
     except Exception:
-        logger.exception(
-            f"Unexpected error during file upload for users {current_user_id} and {chat_id}"
-        )
+        logger.exception(f"Unexpected error during file upload for chat {chat_id}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="An unexpected error occurred during file upload",
         )
 
 
-@app.post("/block_user/{user_id}")
-async def block_user_endpoint(request: Request, user_id: str):
-    try:
-        current_user_id = request.state.user_id
-
-        await block_user(current_user_id, user_id)
-
-        logger.info(f"Blocked user {user_id} for user {current_user_id}")
-        return {"message": f"User {user_id} blocked successfully"}
-
-    except Exception:
-        logger.exception(f"Error blocking user {user_id} for user {current_user_id}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to block user",
-        )
-
-
-@app.post("/get_attachment_urls")
+@app.post("/get_attachments")
 async def get_presigned_urls(request: Request):
     try:
         data = await request.json()
-        file_names = data.get("file_names")
-        if not file_names:
+        attachments = data.get("attachments")
+
+        if not attachments:
             raise ValueError("No file names provided")
-        return generate_presigned_urls(file_names)
+
+        urls = generate_presigned_urls(attachments)
+
+        return {
+            "success": True,
+            "message": "Successfully generated presigned URLs",
+            "data": {"urls": urls},
+        }
 
     except ValueError as ve:
         logger.error(f"Validation error during file upload: {str(ve)}")

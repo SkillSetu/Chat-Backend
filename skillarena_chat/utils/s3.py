@@ -1,4 +1,5 @@
 import base64
+from datetime import datetime
 import logging
 from typing import List
 
@@ -35,13 +36,10 @@ def encrypt_filename(filename):
 
 
 def decrypt_filename(encrypted_filename: str) -> str:
-    secret_key = config.ENCRYPTION_KEY
-    iv = "1020304050607080"
-    ciphertext = b64decode(encrypted_filename)
-    derived_key = b64decode(secret_key)
-    cipher = AES.new(derived_key, AES.MODE_CBC, iv.encode("utf-8"))
-    decrypted_data = cipher.decrypt(ciphertext)
-    return unpad(decrypted_data, 16).decode("utf-8")
+    cipher = AES.new(get_encryption_key(), AES.MODE_ECB)
+    padded_filename = base64.b64decode(encrypted_filename)
+    decrypted = cipher.decrypt(padded_filename)
+    return unpad(decrypted, 16).decode("utf-8")
 
 
 def get_public_url(encrypted_filename):
@@ -65,7 +63,7 @@ def generate_presigned_urls(file_names: List[str]) -> List[str]:
     return data
 
 
-def process_and_upload_file(file: UploadFile, chatid: str) -> dict:
+def process_and_upload_attachment(file: UploadFile, chatid: str) -> dict:
     """Process and upload the given file to S3.
 
     Args:
@@ -104,9 +102,13 @@ def process_and_upload_file(file: UploadFile, chatid: str) -> dict:
         )
 
         return {
-            "original_file_name": file.filename,
-            "stored_file_name": file_name,
             "url": encrypted_url,
+            "metadata": {
+                "originalname": file.filename,
+                "mimetype": content_type,
+                "size": file_size,
+                "createdAt": datetime.utcnow(),
+            },
         }
 
     except ClientError as e:

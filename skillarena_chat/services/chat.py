@@ -5,7 +5,6 @@ from bson import ObjectId
 
 from skillarena_chat.db.database import db
 from skillarena_chat.models import ChatMessage, Message
-from skillarena_chat.services.exceptions import DatabaseOperationError
 
 
 async def get_chat(user_id1: str, user_id2: str) -> Optional[Dict]:
@@ -49,30 +48,6 @@ async def get_recipients_list(user_id: str) -> List[Message]:
     return chats
 
 
-async def mark_messages_as_read(chat: ChatMessage, current_user_id: str):
-    messages = db.get_collection("chats")
-
-    all_messages = chat["messages"]
-    delivered_messages = [
-        message for message in all_messages if message["status"] == "delivered"
-    ]
-    to_update_delivered_messages = [
-        message
-        for message in delivered_messages
-        if message["receiver"] == current_user_id
-    ]
-
-    try:
-        for message in to_update_delivered_messages:
-            await messages.update_one(
-                {"_id": chat["_id"], "messages.id": message["id"]},
-                {"$set": {"messages.$.status": "read"}},
-            )
-
-    except Exception as e:
-        raise DatabaseOperationError("Failed to mark messages as read") from e
-
-
 async def create_initial_chat(user_id: str) -> ChatMessage:
     chat = ChatMessage(
         messages=[
@@ -97,31 +72,3 @@ async def create_initial_chat(user_id: str) -> ChatMessage:
 
     chat = await get_chat(user_id, "skillarena")
     return chat
-
-
-async def block_user(user_id: str, blocked_user_id: str):
-    try:
-        chat = await get_chat(user_id, blocked_user_id)
-        if not chat:
-            raise ValueError("Chat not found")
-
-        await db.get_collection("chats").update_one(
-            {"_id": chat["_id"]},
-            {"$set": {"is_blocked": True, "blocked_by": user_id}},
-        )
-
-    except Exception as e:
-        raise DatabaseOperationError("Failed to block user") from e
-
-
-async def mark_message_as_read(chat_id: str, message_id: str):
-    chats = db.get_collection("chats")
-
-    try:
-        await chats.update_one(
-            {"_id": ObjectId(chat_id), "messages.id": message_id},
-            {"$set": {"messages.$.status": "read"}},
-        )
-
-    except Exception as e:
-        raise DatabaseOperationError("Failed to mark message as read") from e
