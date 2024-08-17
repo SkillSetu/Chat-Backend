@@ -22,23 +22,32 @@ async def get_recipients_list(user_id: str) -> List[Message]:
         .to_list(length=1000)
     )
 
+    if len(chats) == 0:
+        chats = [await create_initial_chat(user_id)]
+
     for chat in chats:
         receiver_id = (
             chat["users"][1] if chat["users"][0] == user_id else chat["users"][0]
         )
-        receiver: dict = await db.get_collection("users").find_one(
-            {"_id": ObjectId(receiver_id)}
-        )
-        avatar = receiver["avatar"]["url"] if receiver.get("avatar") else ""
 
         chat["_id"] = str(chat["_id"])
         chat["receiver"] = receiver_id
-        chat["name"] = receiver["firstName"] + " " + receiver["lastName"]
-        chat["avatar"] = avatar
         chat["last_message"] = (
             len(chat["messages"]) > 0 and chat["messages"][-1].get("message") or ""
         )
         chat.pop("messages")
+
+        if receiver_id != "skillarena":
+            receiver: dict = await db.get_collection("users").find_one(
+                {"_id": ObjectId(receiver_id)}
+            )
+            avatar = receiver["avatar"]["url"] if receiver.get("avatar") else ""
+
+            chat["name"] = receiver["firstName"] + " " + receiver["lastName"]
+            chat["avatar"] = avatar
+        else:
+            chat["name"] = "Skillarena"
+            chat["avatar"] = ""
 
     return chats
 
@@ -67,15 +76,29 @@ async def mark_messages_as_read(chat: ChatMessage, current_user_id: str):
         raise DatabaseOperationError("Failed to mark messages as read") from e
 
 
-async def create_empty_chat(user_id: str, other_user_id: str) -> ChatMessage:
+async def create_initial_chat(user_id: str) -> ChatMessage:
     chat = ChatMessage(
-        messages=[],
-        users=sorted([user_id, other_user_id]),
+        messages=[
+            Message(
+                message="Welcome to Skillarena! 👋",
+                sender="skillarena",
+                receiver=user_id,
+            ),
+            Message(
+                message="Follow the video below to understand how chat works.",
+                sender="skillarena",
+                receiver=user_id,
+            ),
+        ],
+        name="Skillarena",
+        users=sorted([user_id, "skillarena"]),
         created_at=datetime.utcnow(),
         last_updated=datetime.utcnow(),
     )
 
     await db.get_collection("chats").insert_one(chat.dict())
+
+    chat = await get_chat(user_id, "skillarena")
     return chat
 
 
